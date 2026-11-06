@@ -1,0 +1,66 @@
+{
+  "expo": {
+    "name": "GrzyBet",
+    "slug": "GrzybApp",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/images/icon.png",
+    "scheme": "grzybapp",
+    "userInterfaceStyle": "automatic",
+    "ios": {
+      "icon": "./assets/images/icon.png"
+    },
+    "android": {
+      "package": "pl.grzybet.app",
+      "adaptiveIcon": {
+        "backgroundColor": "#111111",
+        "foregroundImage": "./assets/images/android-icon-foreground.png",
+        "monochromeImage": "./assets/images/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false
+    },
+    "web": {
+      "output": "server",
+      "favicon": "./assets/images/favicon.png"
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "GrzyBet potrzebuje zdjęcia, aby dołączyć je do zgłoszenia zbiorów.",
+          "cameraPermission": "GrzyBet korzysta z aparatu do fotografowania Twoich zbiorów.",
+          "microphonePermission": false
+        }
+      ],
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#F5F7F2",
+          "image": "./assets/images/splash-icon-light.png",
+          "dark": {
+            "backgroundColor": "#111111",
+            "image": "./assets/images/splash-icon.png"
+          },
+          "imageWidth": 112,
+          "resizeMode": "contain"
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": true,
+      "reactCompiler": true
+    },
+    "extra": {
+      "router": {
+        "asyncRoutes": {
+          "web": true
+        }
+      },
+      "eas": {
+        "projectId": "e2bbf05e-a8ff-4d25-864e-fb148ccd5087"
+      }
+    },
+    "owner": "quberq"
+  }
+}

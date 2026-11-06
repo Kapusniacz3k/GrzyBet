@@ -1,0 +1,26 @@
+{
+  "cli": {
+    "appVersionSource": "remote",
+    "requireCommit": false
+  },
+  "build": {
+    "preview": {
+      "distribution": "internal",
+      "environment": "preview",
+      "node": "24.13.0",
+      "autoIncrement": true,
+      "env": {
+        "EXPO_PUBLIC_FIREBASE_ENABLED": "true",
+        "EXPO_PUBLIC_FIREBASE_API_KEY": "AIzaSyDKr7mUjqs-lRJGJwHWSVaa7qDR5axnpBg",
+        "EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN": "grzybet.firebaseapp.com",
+        "EXPO_PUBLIC_FIREBASE_PROJECT_ID": "grzybet",
+        "EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET": "grzybet.firebasestorage.app",
+        "EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID": "499009036957",
+        "EXPO_PUBLIC_FIREBASE_APP_ID": "1:499009036957:web:eb692ddcba5cef9e0fea74"
+      },
+      "android": {
+        "buildType": "apk"
+      }
+    }
+  }
+}

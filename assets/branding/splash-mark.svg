@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 100 100" role="img" aria-label="Grzyb GrzyBet">
+  <path fill="#FFFFFF" d="M46 41H54A8 8 0 0 1 62 49V82A10 10 0 0 1 52 92H48A10 10 0 0 1 38 82V49A8 8 0 0 1 46 41Z"/>
+  <path fill="#217D3D" d="M44.2 10H55.8A39.2 39.2 0 0 1 95 49.2A9.8 9.8 0 0 1 85.2 59H14.8A9.8 9.8 0 0 1 5 49.2A39.2 39.2 0 0 1 44.2 10Z"/>
+  <rect x="26.6" y="25.19" width="13.5" height="12.25" rx="6.125" fill="#FFFFFF"/>
+  <rect x="65.3" y="33.52" width="9.9" height="9.31" rx="4.655" fill="#FFFFFF"/>
+</svg>

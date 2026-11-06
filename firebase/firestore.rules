@@ -1,0 +1,161 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signed() { return request.auth != null; }
+    function uid() { return request.auth.uid; }
+    function roomPath(id) { return /databases/$(database)/documents/rooms/$(id); }
+    function room(id) { return get(roomPath(id)).data; }
+    function afterRoom(id) { return getAfter(roomPath(id)).data; }
+    function member(id) { return signed() && uid() in room(id).memberIds; }
+    function host(id) { return member(id) && room(id).host == uid(); }
+    function participantPath(id, user) { return /databases/$(database)/documents/rooms/$(id)/members/$(user); }
+    function answerPath(id, user) { return /databases/$(database)/documents/rooms/$(id)/answers/$(user); }
+    function ticketPath(id, user) { return /databases/$(database)/documents/rooms/$(id)/tickets/$(user); }
+    function harvestPath(id, hid) { return /databases/$(database)/documents/rooms/$(id)/harvests/$(hid); }
+    function count(n) { return n is int && n >= 0 && n <= 999999; }
+    function species(s) {
+      return s in [
+        'Borowik', 'Podgrzybek', 'Maślak', 'Kurka',
+        'Borowik usiatkowany', 'Krasnoborowik ceglastopory', 'Podgrzybek zajączek', 'Podgrzybek złotawy',
+        'Maślak pstry', 'Maślak sitarz', 'Maślak ziarnisty', 'Maślak żółty',
+        'Koźlarz babka', 'Koźlarz czerwony', 'Koźlarz pomarańczowożółty', 'Mleczaj rydz',
+        'Czubajka kania', 'Opieńka miodowa', 'Lejkowiec dęty', 'Gołąbek zielonawofioletowy'
+      ];
+    }
+    function validAnswers(a, ids) {
+      return a is map && a.keys().hasOnly(['winner', 'own', 'total', 'species'])
+        && a.keys().size() >= 1 && a.winner in ids
+        && (!('own' in a) || count(a.own))
+        && (!('total' in a) || ('own' in a && count(a.total) && a.total >= a.own))
+        && (!('species' in a) || ('total' in a && species(a.species)));
+    }
+    function addedSelf(before, after) {
+      return after is list && after.size() == before.size() + 1
+        && after.toSet().size() == after.size() && after.hasAll(before)
+        && !(uid() in before) && uid() in after;
+    }
+
+    match /codes/{code} {
+      allow get: if signed();
+      allow create: if signed() && code.matches('[A-Z0-9]{6}')
+        && request.resource.data.keys().hasOnly(['roomId'])
+        && getAfter(roomPath(request.resource.data.roomId)).data.host == uid()
+        && getAfter(roomPath(request.resource.data.roomId)).data.code == code;
+      allow list, update, delete: if false;
+    }
+
+    match /rooms/{id} {
+      allow get: if signed() && (uid() in resource.data.memberIds || resource.data.phase == 'lobby');
+      allow list: if signed() && uid() in resource.data.memberIds;
+      allow create: if signed()
+        && request.resource.data.keys().hasOnly(['name', 'code', 'startsAt', 'limit', 'host', 'memberIds', 'readyIds', 'phase', 'pendingCount', 'lastHarvestId', 'createdAt', 'finishedAt'])
+        && request.resource.data.name is string && request.resource.data.name.size() >= 3 && request.resource.data.name.size() <= 60
+        && request.resource.data.limit is int && request.resource.data.limit >= 2 && request.resource.data.limit <= 30
+        && request.resource.data.startsAt is timestamp && request.resource.data.startsAt > request.time
+        && request.resource.data.host == uid() && request.resource.data.memberIds == [uid()]
+        && request.resource.data.readyIds == [] && request.resource.data.phase == 'lobby'
+        && request.resource.data.pendingCount == 0 && request.resource.data.lastHarvestId == ''
+        && request.resource.data.createdAt == request.time && request.resource.data.finishedAt == null
+        && getAfter(/databases/$(database)/documents/codes/$(request.resource.data.code)).data.roomId == id
+        && existsAfter(participantPath(id, uid()));
+      allow update: if signed() && (joining() || confirming() || changingPhase() || changingPending());
+      allow delete: if false;
+
+      function joining() {
+        return resource.data.phase == 'lobby'
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['memberIds'])
+          && addedSelf(resource.data.memberIds, request.resource.data.memberIds)
+          && request.resource.data.memberIds.size() <= resource.data.limit
+          && !exists(participantPath(id, uid())) && existsAfter(participantPath(id, uid()));
+      }
+      function confirming() {
+        return uid() in resource.data.memberIds && resource.data.phase == 'predicting'
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['readyIds'])
+          && addedSelf(resource.data.readyIds, request.resource.data.readyIds)
+          && !exists(ticketPath(id, uid())) && existsAfter(ticketPath(id, uid()));
+      }
+      function changingPhase() {
+        return resource.data.host == uid()
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['phase', 'finishedAt'])
+          && (
+            (resource.data.phase == 'lobby' && request.resource.data.phase == 'predicting' && request.resource.data.finishedAt == null)
+            || (resource.data.phase == 'predicting' && request.resource.data.phase == 'collecting'
+              && resource.data.readyIds.size() == resource.data.memberIds.size() && request.resource.data.finishedAt == null)
+            || (resource.data.phase == 'collecting' && request.resource.data.phase == 'finished'
+              && resource.data.pendingCount == 0 && request.resource.data.finishedAt == request.time)
+          );
+      }
+      function changingPending() {
+        let hid = request.resource.data.lastHarvestId;
+        let beforePath = harvestPath(id, hid);
+        return uid() in resource.data.memberIds && resource.data.phase == 'collecting'
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['pendingCount', 'lastHarvestId'])
+          && hid is string && hid.size() > 0
+          && (
+            (request.resource.data.pendingCount == resource.data.pendingCount + 1
+              && !exists(beforePath) && getAfter(beforePath).data.member == uid() && getAfter(beforePath).data.status == 'pending')
+            || (resource.data.host == uid() && request.resource.data.pendingCount == resource.data.pendingCount - 1
+              && get(beforePath).data.status == 'pending' && getAfter(beforePath).data.status in ['approved', 'rejected'])
+          );
+      }
+
+      match /members/{user} {
+        allow read: if member(id);
+        allow create: if signed() && user == uid()
+          && request.resource.data.keys().hasOnly(['name', 'progress', 'joinedAt'])
+          && request.resource.data.name is string && request.resource.data.name.size() >= 2 && request.resource.data.name.size() <= 24
+          && request.resource.data.progress == 0 && request.resource.data.joinedAt == request.time
+          && afterRoom(id).phase == 'lobby' && uid() in afterRoom(id).memberIds;
+        allow update: if member(id) && user == uid() && room(id).phase == 'predicting'
+          && !exists(ticketPath(id, uid()))
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['progress'])
+          && ((existsAfter(answerPath(id, uid())) && request.resource.data.progress == getAfter(answerPath(id, uid())).data.values.keys().size())
+            || (!existsAfter(answerPath(id, uid())) && request.resource.data.progress == 0));
+        allow delete: if false;
+      }
+      match /answers/{user} {
+        allow get: if member(id) && user == uid();
+        allow list: if false;
+        allow create, update: if member(id) && user == uid() && room(id).phase == 'predicting'
+          && !exists(ticketPath(id, uid())) && request.resource.data.keys().hasOnly(['values'])
+          && validAnswers(request.resource.data.values, room(id).memberIds)
+          && ((!exists(answerPath(id, user)) && request.resource.data.values.keys().size() == 1)
+            || (exists(answerPath(id, user)) && request.resource.data.values.keys().hasAll(resource.data.values.keys())
+              && request.resource.data.values.keys().size() == resource.data.values.keys().size() + 1
+              && request.resource.data.values.diff(resource.data.values).affectedKeys().size() == 1))
+          && getAfter(participantPath(id, uid())).data.progress == request.resource.data.values.keys().size();
+        allow delete: if member(id) && user == uid() && room(id).phase == 'predicting' && !exists(ticketPath(id, uid()))
+          && (existsAfter(ticketPath(id, uid())) || getAfter(participantPath(id, uid())).data.progress == 0);
+      }
+      match /tickets/{user} {
+        allow get: if member(id) && (user == uid() || room(id).phase in ['collecting', 'finished']);
+        allow list: if member(id) && room(id).phase in ['collecting', 'finished'];
+        allow create: if member(id) && user == uid() && room(id).phase == 'predicting'
+          && request.resource.data.keys().hasOnly(['values'])
+          && request.resource.data.values.keys().size() == 4 && validAnswers(request.resource.data.values, room(id).memberIds)
+          && request.resource.data.values == get(answerPath(id, uid())).data.values
+          && !(uid() in room(id).readyIds) && uid() in afterRoom(id).readyIds;
+        allow update, delete: if false;
+      }
+      match /harvests/{hid} {
+        allow read: if member(id);
+        allow create: if member(id) && room(id).phase == 'collecting'
+          && request.resource.data.keys().hasOnly(['member', 'species', 'count', 'photoPath', 'note', 'createdAt', 'status', 'rejectionReason'])
+          && request.resource.data.member == uid() && species(request.resource.data.species)
+          && count(request.resource.data.count) && request.resource.data.count > 0
+          && request.resource.data.photoPath == 'rooms/' + id + '/' + uid() + '/' + hid
+          && request.resource.data.note is string && request.resource.data.note.size() <= 300
+          && request.resource.data.createdAt == request.time && request.resource.data.status == 'pending'
+          && request.resource.data.rejectionReason == ''
+          && afterRoom(id).pendingCount == room(id).pendingCount + 1 && afterRoom(id).lastHarvestId == hid;
+        allow update: if host(id) && room(id).phase == 'collecting' && resource.data.status == 'pending'
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'rejectionReason'])
+          && request.resource.data.status in ['approved', 'rejected']
+          && request.resource.data.rejectionReason is string && request.resource.data.rejectionReason.size() <= 300
+          && (request.resource.data.status != 'rejected' || request.resource.data.rejectionReason.size() > 0)
+          && afterRoom(id).pendingCount == room(id).pendingCount - 1 && afterRoom(id).lastHarvestId == hid;
+        allow delete: if false;
+      }
+    }
+  }
+}
