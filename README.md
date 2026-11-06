@@ -12,7 +12,7 @@ Wymagany Node.js 24 lub nowszy (testy uruchamiają pliki TypeScript bez dodatkow
 - Jeżeli połączenie lokalne nie działa: npx.cmd expo start --go --clear --tunnel ngrok
 - Wersja przeglądarkowa: npx.cmd expo start --web
 
-ImagePicker, ImageManipulator, FileSystem i AsyncStorage są dostępne w zgodnej wersji Expo Go.
+ImagePicker, ImageManipulator, FileSystem, AsyncStorage i react-native-svg są dostępne w zgodnej wersji Expo Go.
 Własna instalowalna aplikacja wymaga development build / EAS Build; polskie opisy uprawnień i konfiguracja aparatu są w app.json.
 
 ## Instalowana wersja Android — APK
@@ -33,24 +33,27 @@ Przy pierwszym budowaniu wybierz wygenerowanie klucza podpisującego przez Expo.
 - Jasny i ciemny motyw wybierane w Ustawienia → Wygląd aplikacji. Wybór zapisuje się na urządzeniu razem z podpowiedziami i obejmuje ekrany, formularze, nawigację, instrukcję oraz łączenie z aplikacją.
 - Jeśli na Pixelu jasny motyw w Expo Go pozostaje ciemny, sprawdź systemowy rozszerzony ciemny motyw. Wyłącz go dla Expo Go lub wybierz Standardowy; rozszerzona opcja przetwarza kolory niezależnie od palety aplikacji. [Instrukcja Google](https://support.google.com/accessibility/android/answer/6151800?hl=pl).
 - Krótkie animacje wejścia ekranów i kafelków, sprężysta reakcja przycisków, płynne przejścia, rozwijanie instrukcji i historii oraz subtelny ruch grzyba podczas łączenia. Animacje respektują systemowe ograniczenie ruchu.
+- Ikony w interfejsie są rysowane przez `react-native-svg`: grzyb, Grzybedex, profil, kłódka, ustawienia, pomoc, historia, odznaki i symbole przycisków. Wspólny zestaw jest w `src/components/grzybet-icons.tsx`; rozmiary i kolory dopasowują się do miejsca użycia oraz motywu. Dekoracyjne ikony nie przechwytują dotyku ani nie powielają etykiet przycisków w czytniku ekranu. Istniejący APK wymaga ponownego zbudowania, aby zawierał nową bibliotekę; w Expo Go wystarczy odświeżyć projekt.
 - Prosty ekran łączenia i wczytywania: logo GrzyBet, grzyb bez otaczających okręgów oraz „Łączenie z aplikacją…” ze wskaźnikiem ładowania. Przy błędzie można ponowić próbę.
 - Ikona aplikacji to biało-zielony napis GrzyBet na ciemnym tle, w stylu nagłówka ekranu głównego. Przygotowane są też warstwy adaptacyjna i monochromatyczna Androida, ikona iOS i favicon. Systemowy ekran startowy ma ten sam grzyb bez okręgów, z jasnym i ciemnym tłem. Ikona i systemowy ekran startowy wymagają nowego builda preview/produkcyjnego; Expo Go nie odwzorowuje ich w pełni. Źródła wektorowe i opis plików: assets/branding/README.md.
 - Ekran startowy z dużym grzybem oraz przyciskami Stwórz pokój i Dołącz do pokoju.
 - Przycisk „Jak to działa?” otwiera instrukcję w oknie z rozwijanymi rozdziałami i zasadami punktacji.
-- Wspólny dolny pasek zawiera Start, Grzybdex i Profil. Jest widoczny także w profilu, kartach grzybów i pokojach, a w ustawieniach znika.
-- Grzybdex ma 20 gatunków, m.in. borowiki, podgrzybki, maślaki, koźlarze, rydza, kanię, opieńkę, lejkowca i gołąbka. Każdy ma osobny kafelek, zdjęcie, notatkę i postęp rang. Karta pokazuje zdjęcie, łączny własny zbiór, rekord jednej wyprawy i liczbę wypraw ze znaleziskiem. Statystyki obejmują tylko własne zatwierdzone sztuki z rozpoczętych poszukiwań i zakończonych wypraw.
+- Wspólny dolny pasek zawiera Start, Grzybedex i Profil. Jest widoczny także w profilu, kartach grzybów i pokojach, a w ustawieniach znika.
+- Grzybedex ma 20 gatunków, m.in. borowiki, podgrzybki, maślaki, koźlarze, rydza, kanię, opieńkę, lejkowca i gołąbka. Każdy ma osobny kafelek, zdjęcie, notatkę i postęp rang. Karta pokazuje zdjęcie, łączny własny zbiór, rekord jednej wyprawy i liczbę wypraw ze znaleziskiem. Statystyki obejmują tylko własne zatwierdzone sztuki z rozpoczętych poszukiwań i zakończonych wypraw.
 - Gatunek w typowaniu i zgłoszeniu zbioru wybiera się z rozwijanej listy z wyszukiwaniem. Wyszukiwanie uwzględnia nazwy potoczne, naukowe i zapis bez polskich znaków. Dotychczasowe klucze Borowik, Podgrzybek, Maślak i Kurka pozostają zgodne ze starszymi zapisami.
 - Nieodkryte gatunki mają szarą kłódkę zamiast zdjęcia. Pierwsza zatwierdzona sztuka odblokowuje zdjęcie i krótką notatkę z podanym źródłem. Karta pokazuje obecną rangę i liczbę sztuk do kolejnej, bez listy wszystkich rang.
-- Nagłówek Grzybdexu i podsumowanie gatunków, sztuk oraz odznak są przypięte u góry; przewija się tylko lista kafelków.
+- Nagłówek Grzybedexu i podsumowanie gatunków, sztuk oraz odznak są przypięte u góry; przewija się tylko lista kafelków. Mniejszy nagłówek, podsumowanie i kafelki pozwalają pokazać dwa pełne rzędy grzybów na ekranie telefonu.
 - Odznaki zdobywa się osobno dla każdego gatunku: Drewno 1, Brąz 10, Srebro 50, Złoto 100, Diament 250, Grzybiarz 1000 sztuk. Postęp jest wyliczany z aktualnych zgłoszeń, bez osobnego zapisu liczników. Zdjęcia są dołączone do aplikacji; autorzy i poszczególne licencje są w assets/images/grzybdex/CREDITS.md oraz w odblokowanej karcie gatunku.
 - Ustawienia są dostępne pod ikoną w prawym górnym rogu.
-- Profil ma kartę z inicjałem i nickiem, duże liczniki zbiorów i punktów, zwięzłe statystyki, rozwijaną historię z podsumowaniami oraz karty aktywnych kuponów. Ustawienia są pod ikoną w nagłówku.
+- Profil ma prosty nagłówek z inicjałem i nickiem, wspólną neutralną kartę statystyk, domyślnie zwiniętą historię i lekką listę aktywnych kuponów. Kolory ograniczono do tła, tekstu, subtelnych linii i zielonego akcentu. Ustawienia są pod ikoną w nagłówku.
+- Konto online jest opcjonalne: można zabezpieczyć obecnego gościa e-mailem i hasłem, zachowując nick, wyprawy i Grzybedex, albo zalogować się na istniejące konto. Formularze są w profilu i ustawieniach, a logowanie także przed wyborem nicku. Dostępne są powtórzenie i podgląd hasła, reset hasła oraz wylogowanie. Przełączenie gościa z wyprawami na inne konto wymaga potwierdzenia; konta nie są automatycznie łączone. W Firebase trzeba włączyć Anonymous oraz Email/Password. Testy emulatora obejmują zachowanie postępu po logowaniu na drugim urządzeniu, konflikt e-maila, błędne dane i pełny reset hasła.
+- Usunięcie konta jest dostępne bezpośrednio w profilu, pod przyciskami zabezpieczenia konta i logowania; dla zalogowanego konta także w zarządzaniu kontem. Okno wymaga pełnych 5 sekund od otwarcia oraz zaznaczenia potwierdzenia; ponowne otwarcie zeruje oba warunki. Przy starszej sesji można potwierdzić hasło bez wychodzenia z okna. Usuwamy konto Firebase Authentication i dostęp do jego postępu; wspólne wyprawy, wyniki oraz zdjęcia pozostają u uczestników, o czym okno informuje. Po usunięciu można rozpocząć nowy profil gościa. Testy obejmują blokadę czasu i potwierdzenia, niepoprawne hasło, usunięcie konta oraz zachowanie wspólnej wyprawy innego uczestnika.
 - Jeden przycisk Wznów grę pozwala wrócić do ostatniej aktywnej wyprawy.
 - Ustawienie podpowiedzi w pytaniach zapisuje się lokalnie.
-- Tworzenie pokoju z przyszłą datą i limitem uczestników oraz dołączanie kodem.
+- Tworzenie pokoju wymaga tylko nazwy i limitu uczestników; dołącza się kodem. Data wyprawy pochodzi z momentu utworzenia pokoju. Rzeczywisty start typowania zapisuje się raz, po kliknięciu przez organizatora „Rozpocznij typowanie”. W online oba momenty pochodzą z zegara serwera i są takie same dla uczestników. Godzina pozostaje niezmienna przy starcie poszukiwań i zakończeniu wyprawy. Starsze pokoje online korzystają z zapisanej daty utworzenia; brakującej godziny typowania nie odtwarzamy z dawnej planowanej daty.
 - Lobby, pytania po jednym i jeden zatwierdzony kupon na uczestnika.
 - Etapy: lobby → pytania → oczekiwanie na gotowość wszystkich → poszukiwania → zakończona wyprawa.
-- Organizator najpierw uruchamia pytania przyciskiem Start. Dołączanie jest dostępne tylko w lobby. Data wyprawy jest informacyjna i nie uruchamia etapów.
+- Organizator najpierw uruchamia pytania przyciskiem „Rozpocznij typowanie”. Dołączanie jest dostępne tylko w lobby. Etapy rozpoczyna organizator.
 - Każdy odpowiada kolejno na cztery pytania, we własnym tempie. Postęp zapisuje się po każdej odpowiedzi i wraca po ponownym uruchomieniu.
 - Po czwartym pytaniu uczestnik zatwierdza podsumowanie. Wcześniej może rozpocząć odpowiadanie od nowa; po zatwierdzeniu typów nie można edytować.
 - W lobby widać gotowość oraz postęp każdego uczestnika. Dopiero gdy wszyscy zatwierdzą odpowiedzi, organizator może nacisnąć Wystartuj poszukiwania.

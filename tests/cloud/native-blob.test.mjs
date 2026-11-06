@@ -38,7 +38,7 @@ test('Firebase uploads small and chunked native blobs without constructing blobs
   try {
     const { user } = await signInAnonymously(auth);
     const repo = new CloudRepository(db, user.uid, 'Android');
-    const id = await repo.create({ name: 'Zdjęcia z Androida', date: new Date(Date.now() + 86400000).toISOString(), limit: 2 });
+    const id = await repo.create({ name: 'Zdjęcia z Androida', limit: 2 });
     await repo.transition(id, 'begin');
     const values = { winner: user.uid, own: 12, total: 12, species: 'Borowik' };
     for (const key of ['winner', 'own', 'total', 'species']) await repo.answer(id, key, values[key]);

@@ -5,7 +5,7 @@ import { useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { MotionPressable as Pressable, MotionView } from '@/components/motion';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { MushroomIcon } from '@/components/grzybet-icons';
+import { ArrowIcon, HelpCircleIcon, MushroomIcon, PlusIcon, SettingsIcon } from '@/components/grzybet-icons';
 import { useGame } from './game';
 import { HowToPlayModal } from './how-to-play-modal';
 import { usePreferences } from './preferences';
@@ -22,7 +22,7 @@ export function HomeScreen() {
       <Text accessibilityRole="header" style={styles.logo}>Grzy<Text style={styles.green}>Bet</Text></Text>
       <Pressable accessibilityRole="button" accessibilityLabel="Ustawienia" onPress={() => router.push('/settings')}
         style={({ pressed }) => [styles.settings, pressed && styles.pressed]}>
-        <Text style={styles.gear}>⚙</Text>
+        <SettingsIcon color={colors.text} />
       </Pressable>
     </MotionView>
 
@@ -36,7 +36,7 @@ export function HomeScreen() {
           <Text accessibilityRole="header" style={styles.title}>Zbierz ekipę.{'\n'}Ruszajcie do lasu.</Text>
           <Pressable accessibilityRole="button" accessibilityLabel="Jak to działa?" accessibilityHint="Otwiera instrukcję gry z rozwijanymi rozdziałami"
             onPress={() => setShowHelp(true)} style={({ pressed }) => [styles.help, pressed && styles.pressed]}>
-            <View style={styles.helpIcon}><Text style={styles.questionMark}>?</Text></View>
+            <HelpCircleIcon color={colors.textMuted} />
             <Text style={styles.helpLabel}>Jak to działa?</Text>
           </Pressable>
         </View>
@@ -45,11 +45,11 @@ export function HomeScreen() {
       <MotionView delay={100} style={styles.actions}>
         <Pressable accessibilityRole="button" onPress={() => router.push('/create')}
           style={({ pressed }) => [styles.primary, pressed && styles.pressed]}>
-          <Text style={[styles.buttonText, styles.primaryText]}>Stwórz pokój</Text><Text style={[styles.arrow, styles.primaryText]}>＋</Text>
+          <Text style={[styles.buttonText, styles.primaryText]}>Stwórz pokój</Text><PlusIcon color={colors.onPrimary} />
         </Pressable>
         <Pressable accessibilityRole="button" onPress={() => router.push('/join')}
           style={({ pressed }) => [styles.secondary, pressed && styles.pressed]}>
-          <Text style={styles.buttonText}>Dołącz do pokoju</Text><Text style={styles.arrow}>→</Text>
+          <Text style={styles.buttonText}>Dołącz do pokoju</Text><ArrowIcon color={colors.text} />
         </Pressable>
         {latest && <Pressable accessibilityRole="button" accessibilityLabel={'Wznów grę: ' + latest.name}
           onPress={() => router.push({ pathname: '/room/[id]', params: { id: latest.id } })}
@@ -58,7 +58,7 @@ export function HomeScreen() {
             <Text style={styles.resumeTitle}>Wznów grę</Text>
             <Text numberOfLines={1} style={styles.roomName}>{latest.name}</Text>
           </View>
-          <Text style={styles.resumeArrow}>↗</Text>
+          <ArrowIcon size={22} direction="up-right" color={colors.textMuted} />
         </Pressable>}
       </MotionView>
     </ScrollView>
@@ -74,7 +74,6 @@ const createStyles = (c: AppColors) => StyleSheet.create({
   logo: { color: c.text, fontSize: 27, fontWeight: '900', letterSpacing: -1 },
   green: { color: c.primary },
   settings: { width: 48, height: 48, borderWidth: 1, borderColor: c.border, borderRadius: 24, alignItems: 'center', justifyContent: 'center' },
-  gear: { color: c.text, fontSize: 26 },
   pressed: { opacity: 0.6 },
   content: { flex: 1 },
   page: { flexGrow: 1, width: '100%', maxWidth: 540, alignSelf: 'center', paddingHorizontal: 24, paddingBottom: 24 },
@@ -84,8 +83,6 @@ const createStyles = (c: AppColors) => StyleSheet.create({
   intro: { alignItems: 'center', gap: 12 },
   title: { color: c.text, fontSize: 32, lineHeight: 38, letterSpacing: -1.1, fontWeight: '900', textAlign: 'center' },
   help: { minHeight: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingHorizontal: 12, paddingVertical: 8 },
-  helpIcon: { width: 20, height: 20, borderWidth: 1.5, borderColor: c.textMuted, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
-  questionMark: { color: c.textSecondary, fontSize: 13, lineHeight: 16, fontWeight: '700' },
   helpLabel: { color: c.textSecondary, fontSize: 14, lineHeight: 21, fontWeight: '600' },
   actions: { width: '100%', gap: 12 },
   primary: { minHeight: 60, backgroundColor: c.primary, borderRadius: 14, paddingHorizontal: 22, paddingVertical: 16,
@@ -94,10 +91,8 @@ const createStyles = (c: AppColors) => StyleSheet.create({
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 16 },
   buttonText: { color: c.text, fontSize: 16, fontWeight: '800', flexShrink: 1 },
   primaryText: { color: c.onPrimary },
-  arrow: { color: c.text, fontSize: 24, lineHeight: 28 },
   resume: { minHeight: 52, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 16, paddingHorizontal: 4, paddingTop: 8 },
   resumeText: { flex: 1, gap: 4 },
   resumeTitle: { color: c.text, fontSize: 13, fontWeight: '700' },
   roomName: { color: c.textMuted, fontSize: 12 },
-  resumeArrow: { color: c.textMuted, fontSize: 22 },
 });

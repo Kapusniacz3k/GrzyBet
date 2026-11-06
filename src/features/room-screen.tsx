@@ -4,6 +4,7 @@ import { Text, View } from 'react-native';
 import { answeredCount, calculateResults, isReady, memberName, dateLabel, everyoneReady, statusLabel, useGame, type Room } from './game';
 import { HarvestPanel } from './harvest-panel';
 import { TicketForm } from './ticket-form';
+import { predictionStartLabel, roomDateLabel } from './room-timing';
 import { Button, Card, Choices, Copy, Label, Message, Page, useUIStyles, Title } from './ui';
 
 export function RoomScreen() {
@@ -21,12 +22,14 @@ export function RoomScreen() {
   if (room.phase === 'predicting' && !room.tickets[userId]) return <Page>
     <Text style={s.badge}>TYPOWANIE ROZPOCZĘTE</Text>
     <Title>{room.name}</Title>
+    <RoomTiming room={room} />
     <TicketForm key={room.id} room={room} />
   </Page>;
   return <Page>
     <Text style={s.badge}>{statusLabel(room).toUpperCase()}</Text>
     <Title>{room.name}</Title>
-    <Copy>{dateLabel(room.date)} · Organizator: {memberName(room, room.host)}</Copy>
+    <RoomTiming room={room} />
+    <Copy>Organizator: {memberName(room, room.host)}</Copy>
     <Card><Copy>KOD POKOJU</Copy><Text selectable style={s.title}>{room.code}</Text><Copy>{mode === 'online' ? 'Przekaż kod znajomym, żeby dołączyli do lobby.' : 'W wersji lokalnej kod działa tylko na tym urządzeniu.'}</Copy></Card>
     <Choices options={tabs} value={activeTab} onChange={setTab} />
     {activeTab === 'Lobby' && <>
@@ -43,6 +46,14 @@ export function RoomScreen() {
     </>}
     {room.phase === 'finished' && activeTab === 'Wyniki' && <ResultsPanel room={room} />}
   </Page>;
+}
+
+function RoomTiming({ room }: { room: Room }) {
+  return <View style={{ gap: 4 }}>
+    <Copy>Data wyprawy: {roomDateLabel(room.date)}</Copy>
+    {room.predictionStartedAt ? <Copy>Start typowania: {predictionStartLabel(room.date, room.predictionStartedAt)}</Copy>
+      : room.phase === 'lobby' && <Copy>Start typowania: czekamy na organizatora</Copy>}
+  </View>;
 }
 
 function ParticipantReadiness({ room }: { room: Room }) {
@@ -68,7 +79,7 @@ function OrganizerPanel({ room }: { room: Room }) {
   const [error, setError] = useState('');
   const pending = room.harvests.filter(h => h.status === 'pending').length;
   if (room.phase === 'finished') return <Card><Label>Wyprawa zakończona</Label><Copy>Wyniki zapisano {dateLabel(room.finishedAt!)}. Kupony, zbiory i decyzje są już zablokowane.</Copy></Card>;
-  const title = room.phase === 'lobby' ? 'Start — rozpocznij pytania' : room.phase === 'predicting' ? 'Wystartuj poszukiwania' : 'Zakończ wyprawę';
+  const title = room.phase === 'lobby' ? 'Rozpocznij typowanie' : room.phase === 'predicting' ? 'Wystartuj poszukiwania' : 'Zakończ wyprawę';
   const explanation = room.phase === 'lobby'
     ? 'Gdy wszyscy dołączą, uruchom typowanie. Każdy dostanie po jednym pytaniu. Po starcie nie można dołączać.'
     : room.phase === 'predicting'

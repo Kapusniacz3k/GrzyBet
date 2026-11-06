@@ -48,14 +48,15 @@ service cloud.firestore {
       allow get: if signed() && (uid() in resource.data.memberIds || resource.data.phase == 'lobby');
       allow list: if signed() && uid() in resource.data.memberIds;
       allow create: if signed()
-        && request.resource.data.keys().hasOnly(['name', 'code', 'startsAt', 'limit', 'host', 'memberIds', 'readyIds', 'phase', 'pendingCount', 'lastHarvestId', 'createdAt', 'finishedAt'])
+        && request.resource.data.keys().hasOnly(['name', 'code', 'startsAt', 'limit', 'host', 'memberIds', 'readyIds', 'phase', 'pendingCount', 'lastHarvestId', 'createdAt', 'finishedAt', 'predictionStartedAt'])
         && request.resource.data.name is string && request.resource.data.name.size() >= 3 && request.resource.data.name.size() <= 60
         && request.resource.data.limit is int && request.resource.data.limit >= 2 && request.resource.data.limit <= 30
-        && request.resource.data.startsAt is timestamp && request.resource.data.startsAt > request.time
+        && request.resource.data.startsAt == request.time
         && request.resource.data.host == uid() && request.resource.data.memberIds == [uid()]
         && request.resource.data.readyIds == [] && request.resource.data.phase == 'lobby'
         && request.resource.data.pendingCount == 0 && request.resource.data.lastHarvestId == ''
         && request.resource.data.createdAt == request.time && request.resource.data.finishedAt == null
+        && request.resource.data.predictionStartedAt == null
         && getAfter(/databases/$(database)/documents/codes/$(request.resource.data.code)).data.roomId == id
         && existsAfter(participantPath(id, uid()));
       allow update: if signed() && (joining() || confirming() || changingPhase() || changingPending());
@@ -76,12 +77,15 @@ service cloud.firestore {
       }
       function changingPhase() {
         return resource.data.host == uid()
-          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['phase', 'finishedAt'])
           && (
-            (resource.data.phase == 'lobby' && request.resource.data.phase == 'predicting' && request.resource.data.finishedAt == null)
+            (resource.data.phase == 'lobby' && request.resource.data.phase == 'predicting' && request.resource.data.finishedAt == null
+              && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['phase', 'predictionStartedAt'])
+              && request.resource.data.predictionStartedAt == request.time)
             || (resource.data.phase == 'predicting' && request.resource.data.phase == 'collecting'
+              && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['phase'])
               && resource.data.readyIds.size() == resource.data.memberIds.size() && request.resource.data.finishedAt == null)
             || (resource.data.phase == 'collecting' && request.resource.data.phase == 'finished'
+              && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['phase', 'finishedAt'])
               && resource.data.pendingCount == 0 && request.resource.data.finishedAt == request.time)
           );
       }

@@ -38,6 +38,15 @@ test('empty list and web image data are valid saved states', () => {
   assert.deepEqual(decodeRooms(encodeRooms([state])), [state]);
 });
 
+test('prediction start time is optional for old trips and validated when recorded', () => {
+  const old = sample();
+  assert.equal(decodeRooms(encodeRooms([old]))[0].predictionStartedAt, undefined);
+  const recorded = { ...old, predictionStartedAt: '2026-10-31T09:30:00.000Z' };
+  assert.deepEqual(decodeRooms(encodeRooms([recorded])), [recorded]);
+  assert.throws(() => decodeRooms(raw([{ ...old, predictionStartedAt: 'not-a-date' }])));
+  assert.throws(() => decodeRooms(raw([{ ...recorded, phase: 'lobby', closed: false, ticket: undefined, tickets: {}, harvests: [], finishedAt: undefined }])));
+});
+
 test('broken JSON, missing schema and unknown versions report errors without recovery/reset', () => {
   for (const value of ['{', '', 'null', '[]', '{"version":1}', '{"version":3,"rooms":[]}']) {
     assert.throws(() => decodeRooms(value), /zapis|dane/i);

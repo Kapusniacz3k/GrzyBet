@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Keyboard, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import type { AppColors } from '@/constants/app-theme';
-import { MushroomIcon } from '@/components/grzybet-icons';
+import { CheckIcon, ChevronIcon, CloseIcon, MushroomIcon } from '@/components/grzybet-icons';
 import { MotionPressable as Pressable, MotionView } from '@/components/motion';
 import { useAppTheme, useThemedStyles } from '@/hooks/use-app-theme';
 import { searchSpecies, speciesLabel } from './mushroom-species';
@@ -31,7 +31,7 @@ export function SpeciesPicker({ value, onChange, disabled = false }: {
       style={({ pressed }) => [styles.trigger, open && styles.triggerOpen, (pressed || disabled) && styles.dimmed]}>
       <MushroomIcon size={23} color={colors.accent} stemColor={colors.accent} />
       <Text style={[styles.selectedText, !value && styles.placeholder]}>{value ? speciesLabel(value) : 'Wybierz gatunek grzyba'}</Text>
-      <Text style={styles.chevron}>{open ? '⌃' : '⌄'}</Text>
+      <ChevronIcon direction={open ? 'up' : 'down'} color={colors.accent} />
     </Pressable>
     {open && <MotionView distance={0} style={styles.dropdown}>
       <View style={styles.searchRow}>
@@ -39,7 +39,7 @@ export function SpeciesPicker({ value, onChange, disabled = false }: {
           value={query} onChangeText={setQuery} autoCorrect={false} autoCapitalize="none"
           placeholderTextColor={colors.textMuted} style={styles.searchInput} />
         {!!query && <Pressable accessibilityRole="button" accessibilityLabel="Wyczyść wyszukiwanie" onPress={() => setQuery('')} style={styles.clear}>
-          <Text style={styles.clearText}>×</Text>
+          <CloseIcon color={colors.textMuted} />
         </Pressable>}
       </View>
       <Text accessibilityLiveRegion="polite" style={styles.resultCount}>Gatunki: {matches.length}</Text>
@@ -48,7 +48,7 @@ export function SpeciesPicker({ value, onChange, disabled = false }: {
           accessibilityState={{ checked: item.name === value }} aria-checked={item.name === value}
           onPress={() => choose(item.name)} style={({ pressed }) => [styles.option, item.name === value && styles.optionSelected, pressed && styles.dimmed]}>
           <View style={styles.optionText}><Text style={styles.optionLabel}>{item.label}</Text><Text style={styles.latin}>{item.scientificName}</Text></View>
-          {item.name === value && <Text style={styles.check}>✓</Text>}
+          {item.name === value && <CheckIcon color={colors.accent} />}
         </Pressable>)}
         {!matches.length && <View style={styles.empty}><Text style={styles.optionLabel}>Nie znaleziono gatunku</Text>
           <Text style={styles.latin}>Spróbuj krótszej nazwy lub nazwy potocznej.</Text></View>}
@@ -63,12 +63,10 @@ const createStyles = (c: AppColors) => StyleSheet.create({
   triggerOpen: { borderColor: c.primary },
   selectedText: { flex: 1, minWidth: 0, color: c.text, fontSize: 14, lineHeight: 21, fontWeight: '600' },
   placeholder: { color: c.textMuted, fontWeight: '400' },
-  chevron: { color: c.accent, fontSize: 24, lineHeight: 26 },
   dropdown: { borderWidth: 1, borderColor: c.border, borderRadius: 14, overflow: 'hidden', backgroundColor: c.surface },
   searchRow: { flexDirection: 'row', alignItems: 'center', margin: 10, borderWidth: 1, borderColor: c.borderStrong, borderRadius: 10, backgroundColor: c.surfaceInset },
   searchInput: { flex: 1, minWidth: 0, minHeight: 48, padding: 12, color: c.text, fontSize: 14 },
   clear: { width: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center' },
-  clearText: { color: c.textMuted, fontSize: 24 },
   resultCount: { paddingHorizontal: 14, paddingBottom: 10, color: c.textMuted, fontSize: 11, lineHeight: 17 },
   list: { maxHeight: 280 },
   option: { minHeight: 64, flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, borderTopWidth: 1, borderTopColor: c.border },
@@ -76,7 +74,6 @@ const createStyles = (c: AppColors) => StyleSheet.create({
   optionText: { flex: 1, minWidth: 0, gap: 3 },
   optionLabel: { color: c.text, fontSize: 14, lineHeight: 20, fontWeight: '600' },
   latin: { color: c.textMuted, fontSize: 11, lineHeight: 17 },
-  check: { color: c.accent, fontSize: 19 },
   empty: { padding: 16, gap: 6 },
   dimmed: { opacity: 0.6 },
 });

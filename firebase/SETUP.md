@@ -10,10 +10,17 @@ W ustawieniach projektu dodaj aplikację ikoną **Web (`</>`)**. To poprawny typ
 
 Skopiuj konfigurację `firebaseConfig`. Potrzebne są publiczne pola: `apiKey`, `authDomain`, `projectId`, `storageBucket`, `messagingSenderId`, `appId`. Nie przekazuj hasła Google, pliku service account ani klucza prywatnego.
 
-## 2. Włącz logowanie gości i bazę
+## 2. Włącz logowanie i bazę
 
 - **Authentication → Sign-in method → Anonymous → Enable.**
+- **Authentication → Sign-in method → Email/Password → Enable.** Włącz metodę z hasłem; link logowania bez hasła nie jest potrzebny. Gra jako gość nadal działa.
 - **Firestore Database → Create database.** Wybierz Standard edition, lokalizację w Europie i tryb production. Reguły wdrożysz z projektu; nie włączaj publicznego zapisu.
+
+W profilu opcja **Zabezpiecz konto** łączy e-mail i hasło z obecnym kontem gościa, zachowując jego identyfikator, nick, wyprawy i Grzybedex. Minimalna długość nowego hasła to 8 znaków. **Mam już konto — zaloguj się** przełącza na istniejące konto; postęp innego gościa nie jest automatycznie łączony. Jeśli gość ma wyprawy, aplikacja wymaga potwierdzenia przełączenia. Logowanie jest też dostępne przed wyborem nicku. Reset hasła wysyła link obsługiwany przez Firebase; aplikacja pokazuje ten sam komunikat dla znanych i nieznanych adresów. Haseł nie zapisujemy w dokumentach gry ani we własnym magazynie aplikacji — obsługuje je Firebase Authentication.
+
+**Usuń konto** (lub **Usuń profil gościa**) jest bezpośrednio w profilu, pod zabezpieczeniem konta i logowaniem. Otwiera potwierdzenie z 5-sekundową blokadą i wymaganym zaznaczeniem pola. Starsza sesja może wymagać ponownego podania hasła; błędne hasło nie przełącza konta ani go nie usuwa. Usuwanie korzysta z Firebase Authentication `deleteUser`, bez dodatkowego wdrożenia reguł. Nie usuwa wspólnej historii wypraw, wyników ani zdjęć z Firestore i Storage. To jest opisane w oknie; przed usunięciem organizator powinien zakończyć prowadzone wyprawy. Nowe konto z tym samym e-mailem otrzyma inny identyfikator i nie odzyska poprzedniego postępu.
+
+Data wyprawy pochodzi z `createdAt` pokoju. Pole `startsAt` w nowych pokojach zachowujemy jako zgodny znacznik utworzenia, bez ręcznego planowania. Start typowania zapisuje `predictionStartedAt` przy przejściu lobby → predicting. Oba znaczniki zapisuje `serverTimestamp()`, a reguły wymagają `request.time` i blokują późniejsze podmienianie czasu startu. Ta zmiana wymaga wdrożenia aktualnych reguł Firestore oraz odświeżenia klienta. W starych pokojach godzina typowania może być nieznana; nie zastępujemy jej dawną planowaną godziną.
 
 Te usługi pozwalają uruchomić wspólne lobby i pytania w ramach limitów planu Spark. Dostępność i limity sprawdzisz w [planach Firebase](https://firebase.google.com/pricing).
 

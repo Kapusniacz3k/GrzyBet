@@ -12,16 +12,17 @@ import {
 export type CloudRoom = {
   name: string; code: string; startsAt: Timestamp; limit: number; host: string;
   memberIds: string[]; readyIds: string[]; phase: Phase; pendingCount: number; lastHarvestId: string;
-  createdAt: Timestamp; finishedAt: Timestamp | null;
+  createdAt: Timestamp; finishedAt: Timestamp | null; predictionStartedAt?: Timestamp | null;
 };
 export type CloudHarvest = Omit<Harvest, 'id' | 'photoUri' | 'createdAt'> & { photoPath: string; createdAt: Timestamp };
 export function asRoom(id: string, data: CloudRoom, uid: string): Room {
   return {
-    id, name: data.name, code: data.code, date: data.startsAt.toDate().toISOString(),
+    id, name: data.name, code: data.code, date: (data.createdAt ?? data.startsAt).toDate().toISOString(),
     limit: data.limit, host: data.host, members: data.memberIds, joined: data.memberIds.includes(uid),
     phase: data.phase, closed: data.phase !== 'lobby', tickets: {}, answers: {}, harvests: [],
     readyIds: data.readyIds, names: {}, progress: {},
     ...(data.finishedAt ? { finishedAt: data.finishedAt.toDate().toISOString() } : {}),
+    ...(data.predictionStartedAt ? { predictionStartedAt: data.predictionStartedAt.toDate().toISOString() } : {}),
   };
 }
 
@@ -32,10 +33,9 @@ export class CloudRepository {
   answersRef(id: string) { return doc(this.db, 'rooms', id, 'answers', this.uid); }
   ticketRef(id: string) { return doc(this.db, 'rooms', id, 'tickets', this.uid); }
 
-  async create(data: Pick<Room, 'name' | 'date' | 'limit'>): Promise<string> {
-    if (data.name.trim().length < 3 || data.name.trim().length > 60 || !Number.isFinite(Date.parse(data.date)) ||
-      Date.parse(data.date) <= Date.now() || !Number.isInteger(data.limit) || data.limit < 2 || data.limit > 30) {
-      throw new Error('Sprawdź nazwę, przyszłą datę i limit uczestników.');
+  async create(data: Pick<Room, 'name' | 'limit'>): Promise<string> {
+    if (data.name.trim().length < 3 || data.name.trim().length > 60 || !Number.isInteger(data.limit) || data.limit < 2 || data.limit > 30) {
+      throw new Error('Sprawdź nazwę i limit uczestników.');
     }
     for (let attempt = 0; attempt < 5; attempt++) {
       const roomRef = doc(collection(this.db, 'rooms'));
@@ -44,9 +44,9 @@ export class CloudRepository {
       const created = await runTransaction(this.db, async tx => {
         if ((await tx.get(codeRef)).exists()) return false;
         tx.set(roomRef, {
-          name: data.name.trim(), code, startsAt: Timestamp.fromDate(new Date(data.date)), limit: data.limit,
+          name: data.name.trim(), code, startsAt: serverTimestamp(), limit: data.limit,
           host: this.uid, memberIds: [this.uid], readyIds: [], phase: 'lobby', pendingCount: 0,
-          lastHarvestId: '', createdAt: serverTimestamp(), finishedAt: null,
+          lastHarvestId: '', createdAt: serverTimestamp(), finishedAt: null, predictionStartedAt: null,
         });
         tx.set(codeRef, { roomId: roomRef.id });
         tx.set(doc(roomRef, 'members', this.uid), { name: this.name, progress: 0, joinedAt: serverTimestamp() });
@@ -122,7 +122,9 @@ export class CloudRepository {
       const data = room.data() as CloudRoom;
       if (action === 'finish' && data.pendingCount > 0) throw new Error('Najpierw rozpatrz wszystkie oczekujące zgłoszenia.');
       const updated = transitionRoom(asRoom(id, data, this.uid), action, this.uid);
-      tx.update(this.roomRef(id), { phase: updated.phase, ...(action === 'finish' ? { finishedAt: serverTimestamp() } : {}) });
+      tx.update(this.roomRef(id), { phase: updated.phase,
+        ...(action === 'begin' ? { predictionStartedAt: serverTimestamp() } : {}),
+        ...(action === 'finish' ? { finishedAt: serverTimestamp() } : {}) });
     });
   }
 

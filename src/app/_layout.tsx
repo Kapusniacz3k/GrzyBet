@@ -33,9 +33,10 @@ function ThemedApp() {
         <Stack.Screen name="home" options={{ headerShown: false, animation: reducedMotion ? 'none' : 'fade' }} />
         <Stack.Screen name="index" options={{ headerShown: false }} />
         <Stack.Screen name="profile" options={{ title: 'Mój profil', headerShown: false, animation: reducedMotion ? 'none' : 'fade' }} />
-        <Stack.Screen name="grzybdex/index" options={{ title: 'Grzybdex', headerShown: false, animation: reducedMotion ? 'none' : 'fade' }} />
+        <Stack.Screen name="grzybdex/index" options={{ title: 'Grzybedex', headerShown: false, animation: reducedMotion ? 'none' : 'fade' }} />
         <Stack.Screen name="grzybdex/[id]" options={{ title: 'Karta grzyba' }} />
         <Stack.Screen name="settings" options={{ title: 'Ustawienia' }} />
+        <Stack.Screen name="account" options={{ title: 'Konto' }} />
         <Stack.Screen name="create" options={{ title: 'Nowy pokój' }} />
         <Stack.Screen name="join" options={{ title: 'Dołącz kodem' }} />
         <Stack.Screen name="room/[id]" options={{ title: 'Pokój wyprawy' }} />

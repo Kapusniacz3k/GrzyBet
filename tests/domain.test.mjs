@@ -70,13 +70,32 @@ test('only host controls stages, in the defined order', () => {
   assert.throws(() => transitionRoom(readyRoom(), 'begin', 'Kuba'));
 });
 
-test('planned date does not start or close questions: organizer controls the flow', () => {
+test('room creation date does not start or close questions: organizer controls the flow', () => {
   const state = room({ date: new Date(now - 86400000).toISOString() });
   assert.equal(joinRoom(state, 'Mateusz').members.length, 4);
   assert.equal(isClosed(state), true);
   const started = transitionRoom(state, 'begin', 'Kuba');
   assert.equal(isClosed(started), false);
   assert.equal(answerQuestion(started, 'winner', 'Kuba', 'Kuba').answers.Kuba.winner, 'Kuba');
+});
+
+test('starting predictions records the host action time once and preserves the creation date and start time through storage and later stages', () => {
+  const createdAt = new Date(now - 86400000).toISOString();
+  const beganAt = new Date(now).toISOString();
+  let state = room({ date: createdAt, members: ['Kuba'] });
+  assert.equal(state.predictionStartedAt, undefined);
+  state = transitionRoom(state, 'begin', 'Kuba', now);
+  assert.equal(state.date, createdAt);
+  assert.equal(state.predictionStartedAt, beganAt);
+  assert.throws(() => transitionRoom(state, 'begin', 'Kuba', now + 60000));
+  state = saveTicket(fill(state, 'Kuba'), ticket, 'Kuba');
+  state = transitionRoom(state, 'start', 'Kuba', now + 60000);
+  assert.equal(state.predictionStartedAt, beganAt);
+  state = transitionRoom(state, 'finish', 'Kuba', now + 120000);
+  const restored = decodeRooms(encodeRooms([state]))[0];
+  assert.equal(restored.date, createdAt);
+  assert.equal(restored.predictionStartedAt, beganAt);
+  assert.equal(restored.finishedAt, new Date(now + 120000).toISOString());
 });
 
 test('join respects capacity and does not duplicate existing membership', () => {

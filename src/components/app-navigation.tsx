@@ -41,12 +41,12 @@ function BottomNavigation({ pathname }: { pathname: string }) {
         <MushroomIcon color={startColor} stemColor={startColor} />
         <Text style={[styles.navLabel, { color: startColor }]}>Start</Text>
       </Pressable>
-      <Pressable accessibilityRole="button" accessibilityLabel="Grzybdex" aria-selected={grzybdexActive}
+      <Pressable accessibilityRole="button" accessibilityLabel="Grzybedex" aria-selected={grzybdexActive}
         onPress={() => { if (pathname !== '/grzybdex') router.dismissTo('/grzybdex'); }}
         style={({ pressed }) => [styles.navItem, pressed && styles.pressed]}>
         <ActiveMark active={grzybdexActive} />
         <GrzybdexIcon color={grzybdexColor} />
-        <Text style={[styles.navLabel, { color: grzybdexColor }]}>Grzybdex</Text>
+        <Text style={[styles.navLabel, { color: grzybdexColor }]}>Grzybedex</Text>
       </Pressable>
       <Pressable accessibilityRole="button" accessibilityLabel="Mój profil" aria-selected={profileActive}
         onPress={() => { if (!profileActive) router.navigate('/profile'); }}

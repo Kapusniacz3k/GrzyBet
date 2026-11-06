@@ -22,8 +22,6 @@ const STORAGE_KEY = 'grzybet:rooms:v1';
 
 function seedRooms(): Room[] {
   const date = new Date();
-  date.setDate(date.getDate() + 2);
-  date.setHours(8, 0, 0, 0);
   return [
     { id: 'gorce', name: 'Grzybobranie w Gorcach', code: 'GRZ482', date: date.toISOString(), limit: 8,
       members: ['Kuba', 'Kacper', 'Mateusz', 'Bartek'], host: 'Kuba', joined: true, closed: false,
@@ -98,17 +96,16 @@ function LocalGameProvider({ children }: { children: ReactNode }) {
     const updated = update(room);
     commit(current.current.map(r => r.id === id ? updated : r));
   }
-  async function create(data: Pick<Room, 'name' | 'date' | 'limit'>) {
+  async function create(data: Pick<Room, 'name' | 'limit'>) {
     if (data.name.trim().length < 3 || data.name.trim().length > 60 ||
-        !Number.isFinite(Date.parse(data.date)) || Date.parse(data.date) <= Date.now() ||
         !Number.isInteger(data.limit) || data.limit < 2 || data.limit > 30) {
-      throw new Error('Sprawdź nazwę, przyszłą datę oraz limit 2–30 uczestników.');
+      throw new Error('Sprawdź nazwę oraz limit 2–30 uczestników.');
     }
     let code: string;
     do { code = Math.random().toString(36).slice(2, 8).toUpperCase().padEnd(6, 'X'); }
     while (current.current.some(r => r.code === code));
     const id = Date.now().toString(36) + '-' + code;
-    commit([...current.current, { ...data, name: data.name.trim(), id, code, members: [CURRENT_USER],
+    commit([...current.current, { name: data.name.trim(), limit: data.limit, date: new Date().toISOString(), id, code, members: [CURRENT_USER],
       host: CURRENT_USER, joined: true, closed: false, phase: 'lobby', tickets: {}, answers: {}, harvests: [] }]);
     return id;
   }

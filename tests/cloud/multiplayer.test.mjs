@@ -4,9 +4,9 @@ import assert from 'node:assert/strict';
 import test, { after } from 'node:test';
 const { initializeApp, deleteApp } = require('firebase/app');
 const { initializeAuth, inMemoryPersistence, connectAuthEmulator, signInAnonymously } = require('firebase/auth');
-const { connectFirestoreEmulator, getFirestore, getDoc, getDocs, doc, collection, query, where, updateDoc, setDoc, runTransaction, serverTimestamp, terminate, setLogLevel } = require('firebase/firestore');
+const { connectFirestoreEmulator, getFirestore, getDoc, getDocs, doc, collection, query, where, updateDoc, setDoc, runTransaction, serverTimestamp, Timestamp, terminate, setLogLevel } = require('firebase/firestore');
 const { connectStorageEmulator, getStorage, getBytes, ref, uploadBytes, deleteObject } = require('firebase/storage');
-const { CloudRepository, roomCode, uploadHarvestPhoto, submitHarvestWithPhoto, readHarvestPhoto } = require('../../src/services/cloud-repository.ts');
+const { CloudRepository, asRoom, roomCode, uploadHarvestPhoto, submitHarvestWithPhoto, readHarvestPhoto } = require('../../src/services/cloud-repository.ts');
 const { calculateResults } = require('../../src/features/domain.ts');
 const { species } = require('../../src/features/mushroom-species.ts');
 
@@ -33,7 +33,6 @@ after(async () => {
   stops.forEach(stop => stop());
   await Promise.all(clients.map(async c => { await terminate(c.db); await deleteApp(c.app); }));
 });
-const future = () => new Date(Date.now() + 86400000).toISOString();
 const prediction = winner => ({ winner, own: 12, total: 12, species: 'Borowik' });
 async function fill(c, id, values) {
   for (const key of ['winner','own','total','species']) await c.repo.answer(id, key, values[key]);
@@ -53,9 +52,45 @@ async function denied(promise) {
 }
 const png = new Uint8Array(Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a4XkAAAAASUVORK5CYII=', 'base64'));
 
+test('room creation date and prediction start use immutable server timestamps shared by participants', { timeout: 30000 }, async () => {
+  const host = await client('Organizator czasu');
+  const guest = await client('Uczestnik czasu');
+  const before = Date.now();
+  const id = await host.repo.create({ name: 'Automatyczna data', limit: 2 });
+  const created = (await getDoc(doc(host.db, 'rooms', id))).data();
+  assert.equal(created.startsAt.isEqual(created.createdAt), true);
+  assert.ok(created.createdAt.toMillis() >= before && created.createdAt.toMillis() <= Date.now());
+  assert.equal(created.predictionStartedAt, null);
+  assert.equal(asRoom(id, created, host.user.uid).date, created.createdAt.toDate().toISOString());
+  // Old rooms use their recorded creation time, not the previously planned date.
+  const legacy = { ...created, startsAt: Timestamp.fromMillis(Date.now() + 86400000) };
+  delete legacy.predictionStartedAt;
+  assert.equal(asRoom(id, legacy, host.user.uid).date, created.createdAt.toDate().toISOString());
+  assert.equal(asRoom(id, legacy, host.user.uid).predictionStartedAt, undefined);
+  await guest.repo.join(await roomCode(host.db, id));
+  await denied(updateDoc(doc(guest.db, 'rooms', id), { phase: 'predicting', predictionStartedAt: serverTimestamp() }));
+  await denied(updateDoc(doc(host.db, 'rooms', id), { phase: 'predicting' }));
+  await denied(updateDoc(doc(host.db, 'rooms', id), { phase: 'predicting', predictionStartedAt: Timestamp.fromMillis(0) }));
+  await host.repo.transition(id, 'begin');
+  const started = (await getDoc(doc(host.db, 'rooms', id))).data();
+  assert.ok(started.predictionStartedAt.toMillis() >= created.createdAt.toMillis());
+  const guestRoom = await observe(guest.repo, id, room => room.phase === 'predicting' && !!room.predictionStartedAt);
+  assert.equal(guestRoom.predictionStartedAt, started.predictionStartedAt.toDate().toISOString());
+  assert.equal(guestRoom.date, created.createdAt.toDate().toISOString());
+  await denied(updateDoc(doc(host.db, 'rooms', id), { predictionStartedAt: serverTimestamp() }));
+  await denied(updateDoc(doc(host.db, 'rooms', id), { createdAt: serverTimestamp() }));
+  for (const player of [host, guest]) { await fill(player, id, prediction(host.user.uid)); await player.repo.confirm(id, prediction(host.user.uid)); }
+  await host.repo.transition(id, 'start');
+  assert.equal((await getDoc(doc(host.db, 'rooms', id))).data().predictionStartedAt.isEqual(started.predictionStartedAt), true);
+  await host.repo.transition(id, 'finish');
+  const finished = (await getDoc(doc(host.db, 'rooms', id))).data();
+  assert.equal(finished.createdAt.isEqual(created.createdAt), true);
+  assert.equal(finished.predictionStartedAt.isEqual(started.predictionStartedAt), true);
+});
+
 test('all twenty species can be predicted, submitted and reviewed under the cloud rules', { timeout: 120000 }, async () => {
   const host = await client('Katalog');
-  const id = await host.repo.create({ name: 'Dwadzieścia gatunków', date: future(), limit: 2 });
+  const id = await host.repo.create({ name: 'Dwadzieścia gatunków', limit: 2 });
   await host.repo.transition(id, 'begin');
   for (const name of species) {
     await fill(host, id, { winner: host.user.uid, own: 20, total: 20, species: name });
@@ -79,7 +114,7 @@ test('two independent players share lobby, questions, readiness, photos and fina
   const guest = await client('Kuba'); // same nick, distinct identities
   const outsider = await client('Obcy');
   assert.notEqual(host.user.uid, guest.user.uid);
-  const id = await host.repo.create({ name: 'Wspólna wyprawa', date: future(), limit: 3 });
+  const id = await host.repo.create({ name: 'Wspólna wyprawa', limit: 3 });
   const code = await roomCode(host.db, id);
   await denied(getDocs(collection(outsider.db, 'codes')));
   await denied(getDocs(collection(outsider.db, 'rooms', id, 'members')));
@@ -141,7 +176,7 @@ test('simultaneous joins cannot exceed the last available place', { timeout: 300
   const host = await client('Organizator');
   const one = await client('Pierwszy');
   const two = await client('Drugi');
-  const id = await host.repo.create({ name: 'Ostatnie miejsce', date: future(), limit: 2 });
+  const id = await host.repo.create({ name: 'Ostatnie miejsce', limit: 2 });
   const code = await roomCode(host.db, id);
   const attempts = await Promise.allSettled([one.repo.join(code), two.repo.join(code)]);
   assert.equal(attempts.filter(r => r.status === 'fulfilled').length, 1);
@@ -150,7 +185,7 @@ test('simultaneous joins cannot exceed the last available place', { timeout: 300
 
 test('one counter update cannot conceal two pending submissions', { timeout: 30000 }, async () => {
   const host = await client('Sam');
-  const id = await host.repo.create({ name: 'Test zgłoszeń', date: future(), limit: 2 });
+  const id = await host.repo.create({ name: 'Test zgłoszeń', limit: 2 });
   await host.repo.transition(id, 'begin');
   const values = prediction(host.user.uid);
   await fill(host, id, values);
@@ -170,7 +205,7 @@ test('one counter update cannot conceal two pending submissions', { timeout: 300
 
 test('reconnecting a cached room list still confirms server readiness', { timeout: 20000 }, async () => {
   const host = await client('Powracający');
-  const id = await host.repo.create({ name: 'Powrót do gry', date: future(), limit: 2 });
+  const id = await host.repo.create({ name: 'Powrót do gry', limit: 2 });
   const roomsQuery = query(collection(host.db, 'rooms'), where('memberIds', 'array-contains', host.user.uid));
   await getDocs(roomsQuery);
   await new Promise((resolve, reject) => {
@@ -186,7 +221,7 @@ test('reconnecting a cached room list still confirms server readiness', { timeou
 test('photo submissions report progress, clean up failed writes, and exclude rejected harvests', { timeout: 60000 }, async () => {
   const host = await client('Organizator zdjęć');
   const guest = await client('Uczestnik zdjęć');
-  const id = await host.repo.create({ name: 'Weryfikacja zdjęć', date: future(), limit: 2 });
+  const id = await host.repo.create({ name: 'Weryfikacja zdjęć', limit: 2 });
   await guest.repo.join(await roomCode(host.db, id));
   await host.repo.transition(id, 'begin');
   const values = prediction(guest.user.uid);

@@ -1,16 +1,17 @@
 import type { AppColors } from '@/constants/app-theme';
-import { useThemedStyles } from '@/hooks/use-app-theme';
+import { useAppTheme, useThemedStyles } from '@/hooks/use-app-theme';
 import { useState } from 'react';
 import { Modal, ScrollView, StyleSheet, Text, View } from 'react-native';
 import Animated, { FadeIn, FadeOut, ReduceMotion, useReducedMotion } from 'react-native-reanimated';
 import { MotionPressable as Pressable, MotionView, motionLayout } from '@/components/motion';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { CloseIcon, PlusIcon } from '@/components/grzybet-icons';
 
 const chapters = [
   {
     title: 'Zbierz ekipę',
     paragraphs: [
-      'Stwórz pokój, ustaw datę i limit uczestników, a potem przekaż znajomym kod. Masz już kod? Wybierz „Dołącz do pokoju”.',
+      'Stwórz pokój, wybierz nazwę i limit uczestników, a potem przekaż znajomym kod. Data wyprawy to dzień utworzenia pokoju. Godzinę startu zapisujemy, gdy organizator rozpocznie typowanie.',
       'Wszyscy spotykacie się w lobby i czekacie, aż organizator uruchomi pytania. Po ich rozpoczęciu nie można już dołączyć.',
     ],
   },
@@ -24,7 +25,7 @@ const chapters = [
   {
     title: 'Poczekaj na start poszukiwań',
     paragraphs: [
-      'Gdy wszyscy zatwierdzą odpowiedzi, organizator wybiera „Wystartuj poszukiwania”. Sama data wyprawy nie uruchamia gry.',
+      'Gdy wszyscy zatwierdzą odpowiedzi, organizator wybiera „Wystartuj poszukiwania”. Każdy etap rozpoczyna organizator.',
       'Dopiero wtedy pojawiają się Zbiory. Wyniki pozostają ukryte do zakończenia grzybobrania.',
     ],
   },
@@ -53,6 +54,7 @@ const chapters = [
 
 export function HowToPlayModal({ visible, onClose }: { visible: boolean; onClose: () => void }) {
   const styles = useThemedStyles(createStyles);
+  const colors = useAppTheme();
   const [expanded, setExpanded] = useState<number[]>([0]);
   const reducedMotion = useReducedMotion();
   function toggle(index: number) {
@@ -70,7 +72,7 @@ export function HowToPlayModal({ visible, onClose }: { visible: boolean; onClose
           </View>
           <Pressable accessibilityRole="button" accessibilityLabel="Zamknij instrukcję" onPress={onClose}
             style={({ pressed }) => [styles.close, pressed && styles.pressed]}>
-            <Text style={styles.closeIcon}>×</Text>
+            <CloseIcon size={26} color={colors.text} />
           </Pressable>
         </View>
         <ScrollView style={styles.scroll} contentContainerStyle={styles.chapters} showsVerticalScrollIndicator={false}>
@@ -82,7 +84,7 @@ export function HowToPlayModal({ visible, onClose }: { visible: boolean; onClose
                 style={({ pressed }) => [styles.chapterHeading, pressed && styles.pressed]}>
                 <Text style={styles.number}>{String(index + 1).padStart(2, '0')}</Text>
                 <Text style={styles.chapterTitle}>{chapter.title}</Text>
-                <Text style={styles.expandIcon}>{open ? '−' : '+'}</Text>
+                <PlusIcon size={22} expanded={open} color={colors.textMuted} />
               </Pressable>
               {open && <Animated.View entering={FadeIn.duration(180).reduceMotion(ReduceMotion.System)}
                 exiting={FadeOut.duration(120).reduceMotion(ReduceMotion.System)} style={styles.chapterContent}>
@@ -110,7 +112,6 @@ const createStyles = (c: AppColors) => StyleSheet.create({
   title: { color: c.text, fontSize: 24, lineHeight: 30, fontWeight: '800', letterSpacing: -0.5 },
   subtitle: { color: c.textMuted, fontSize: 13, lineHeight: 19 },
   close: { width: 44, height: 44, borderRadius: 22, backgroundColor: c.surfaceRaised, alignItems: 'center', justifyContent: 'center' },
-  closeIcon: { color: c.text, fontSize: 28, lineHeight: 32 },
   scroll: { flexGrow: 0, flexShrink: 1 },
   chapters: { paddingHorizontal: 16, paddingBottom: 8, gap: 10 },
   chapter: { borderWidth: 1, borderColor: c.border, borderRadius: 14, overflow: 'hidden' },
@@ -118,7 +119,6 @@ const createStyles = (c: AppColors) => StyleSheet.create({
   chapterHeading: { minHeight: 62, padding: 14, flexDirection: 'row', alignItems: 'center', gap: 10 },
   number: { color: c.accent, fontSize: 12, fontWeight: '700' },
   chapterTitle: { flex: 1, color: c.text, fontSize: 14, lineHeight: 20, fontWeight: '700' },
-  expandIcon: { color: c.textMuted, fontSize: 22, lineHeight: 26 },
   chapterContent: { paddingHorizontal: 14, paddingBottom: 18, gap: 12 },
   paragraph: { color: c.textSecondary, fontSize: 14, lineHeight: 22 },
   footer: { padding: 16, borderTopWidth: 1, borderTopColor: c.border },

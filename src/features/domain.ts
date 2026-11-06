@@ -20,6 +20,7 @@ export type Room = {
   id: string;
   name: string;
   code: string;
+  /** Room creation time; the trip's displayed date comes from this timestamp. */
   date: string;
   limit: number;
   members: string[];
@@ -32,6 +33,8 @@ export type Room = {
   tickets: Record<string, Ticket>;
   answers: Record<string, Partial<Ticket>>;
   harvests: Harvest[];
+  /** Absent for lobbies and older saved trips whose start time was not recorded. */
+  predictionStartedAt?: string;
   finishedAt?: string;
   /** Online snapshots use stable user IDs; labels and public readiness are separate. */
   names?: Record<string, string>;
@@ -157,7 +160,7 @@ export function transitionRoom(
 ): Room {
   assertHost(room, actor);
   if (room.phase === 'finished') throw new Error('Ta wyprawa jest już zakończona.');
-  if (action === 'begin' && room.phase === 'lobby') return { ...room, phase: 'predicting', closed: true };
+  if (action === 'begin' && room.phase === 'lobby') return { ...room, phase: 'predicting', closed: true, predictionStartedAt: new Date(now).toISOString() };
   if (action === 'start' && room.phase === 'predicting') {
     if (!everyoneReady(room)) throw new Error('Poczekaj, aż wszyscy uczestnicy zakończą pytania.');
     return { ...room, phase: 'collecting', closed: true };

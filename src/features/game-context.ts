@@ -8,7 +8,7 @@ export type Game = {
   mode: 'local' | 'online';
   busy: boolean;
   setDisplayName?: (name: string) => Promise<void>;
-  create: (data: Pick<Room, 'name' | 'date' | 'limit'>) => Promise<string>;
+  create: (data: Pick<Room, 'name' | 'limit'>) => Promise<string>;
   join: (code: string) => Promise<string>;
   save: (id: string, ticket: Ticket) => Promise<void>;
   answer: (id: string, key: QuestionKey, value: string | number) => Promise<void>;

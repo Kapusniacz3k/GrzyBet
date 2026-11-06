@@ -6,7 +6,7 @@ import { useEffect, useMemo } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import Animated, { Easing, ReduceMotion, useAnimatedStyle, useReducedMotion, useSharedValue, withTiming } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { LockIcon, MushroomIcon } from '@/components/grzybet-icons';
+import { DiamondIcon, LockIcon, MushroomIcon, SparkleIcon } from '@/components/grzybet-icons';
 import { MotionPressable as Pressable, MotionView } from '@/components/motion';
 import { species, useGame } from './game';
 import { mushroomCatalog, mushroomNoteSource } from './grzybdex-catalog';
@@ -28,8 +28,9 @@ export function GrzybdexScreen() {
   const badges = collection.reduce((sum, entry) => sum + badgeProgress(entry.total).earned, 0);
   return <SafeAreaView edges={['top', 'left', 'right']} style={styles.collectionScreen}>
     <MotionView distance={0} style={styles.collectionHeader}>
-      <View style={styles.intro}><Text style={styles.eyebrow}>TWOJA LEŚNA KOLEKCJA</Text><Title>Grzybdex</Title>
-        <Copy>Każdy grzyb to krok do kolejnej odznaki.</Copy></View>
+      <View style={styles.collectionIntro}><Text style={styles.eyebrow}>TWOJA LEŚNA KOLEKCJA</Text>
+        <Text accessibilityRole="header" style={styles.collectionTitle}>Grzybedex</Text>
+        <Text style={styles.collectionCopy}>Każdy grzyb to krok do kolejnej odznaki.</Text></View>
       <View style={styles.summary}>
         <SummaryStat value={`${discovered}/${mushroomCatalog.length}`} label="gatunki" />
         <SummaryStat value={total} label="sztuki" />
@@ -54,7 +55,8 @@ export function GrzybdexScreen() {
             <View style={styles.tileCountRow}><Text style={styles.tileCount}>{stats.total}</Text><Text style={styles.smallCopy}>szt.</Text></View>
             {progress.current
               ? <View style={[styles.badgePill, { borderColor: colors.badges[progress.current.id] }]}>
-                <Text style={[styles.pillLabel, { color: colors.badges[progress.current.id] }]}>◆ {progress.current.name}</Text>
+                <DiamondIcon size={10} color={colors.badges[progress.current.id]} />
+                <Text style={[styles.pillLabel, { color: colors.badges[progress.current.id] }]}>{progress.current.name}</Text>
               </View>
               : <Text style={styles.undiscovered}>Jeszcze nieodkryty</Text>}
             <Text style={styles.smallCopy}>{!unlocked ? 'Odblokuj pierwszą sztuką' : progress.next
@@ -76,7 +78,7 @@ export function MushroomDetailsScreen() {
   const reducedMotion = useReducedMotion();
   const mushroom = mushroomCatalog.find(item => item.id === id);
   if (!mushroom) return <Page><Title>Nie znaleziono grzyba</Title><Copy>Wybierz gatunek ze swojej kolekcji.</Copy>
-    <Button title="Wróć do Grzybdexu" onPress={() => router.replace('/grzybdex')} /></Page>;
+    <Button title="Wróć do Grzybedexu" onPress={() => router.replace('/grzybdex')} /></Page>;
   const stats = collection.find(entry => entry.species === mushroom.name)!;
   const unlocked = stats.total > 0;
   return <Page>
@@ -117,9 +119,9 @@ function BadgeMark({ badge }: { badge: MushroomBadge }) {
   const colors = useAppTheme();
   const color = colors.badges[badge.id];
   return <View accessible={false} importantForAccessibility="no-hide-descendants" style={[styles.medal, { borderColor: color }]}>
-    {badge.id === 'diamond' || badge.id === 'mushroomer'
-      ? <Text style={[styles.medalSymbol, { color }]}>{badge.id === 'diamond' ? '◆' : '✦'}</Text>
-      : <MushroomIcon size={26} color={color} stemColor={color} />}
+    {badge.id === 'diamond' ? <DiamondIcon color={color} />
+      : badge.id === 'mushroomer' ? <SparkleIcon color={color} />
+        : <MushroomIcon size={26} color={color} stemColor={color} />}
   </View>;
 }
 
@@ -151,28 +153,31 @@ function BadgeProgress({ stats }: { stats: SpeciesStats }) {
 
 const createStyles = (c: AppColors) => StyleSheet.create({
   collectionScreen: { flex: 1, backgroundColor: c.background },
-  collectionHeader: { width: '100%', maxWidth: 640, alignSelf: 'center', padding: 22, paddingBottom: 20, gap: 20, flexShrink: 0 },
+  collectionHeader: { width: '100%', maxWidth: 640, alignSelf: 'center', paddingHorizontal: 22, paddingTop: 14, paddingBottom: 14, gap: 12, flexShrink: 0 },
   collectionScroll: { flex: 1 },
   collectionContent: { paddingTop: 0 },
+  collectionIntro: { gap: 4 },
+  collectionTitle: { color: c.text, fontSize: 26, lineHeight: 32, fontWeight: '800', letterSpacing: -0.8 },
+  collectionCopy: { color: c.textSecondary, fontSize: 13, lineHeight: 20 },
   intro: { gap: 8 },
   eyebrow: { color: c.accent, fontSize: 10, fontWeight: '800', letterSpacing: 1.6 },
-  summary: { flexDirection: 'row', paddingVertical: 18, borderWidth: 1, borderColor: c.border, borderRadius: 16, backgroundColor: c.surface },
-  summaryItem: { flex: 1, alignItems: 'center', gap: 4 },
-  summaryNumber: { color: c.text, fontSize: 24, fontWeight: '800', letterSpacing: -0.5 },
+  summary: { flexDirection: 'row', paddingVertical: 8, borderWidth: 1, borderColor: c.border, borderRadius: 14, backgroundColor: c.surface },
+  summaryItem: { flex: 1, alignItems: 'center', gap: 2 },
+  summaryNumber: { color: c.text, fontSize: 20, lineHeight: 24, fontWeight: '800', letterSpacing: -0.5 },
   smallCopy: { color: c.textMuted, fontSize: 12, lineHeight: 18 },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
   tile: { flexBasis: '47%', flexGrow: 1, minWidth: 0, borderWidth: 1, borderColor: c.border, borderRadius: 16, overflow: 'hidden', backgroundColor: c.surface },
-  tilePhoto: { width: '100%', aspectRatio: 1.25, backgroundColor: c.photoPlaceholder },
+  tilePhoto: { width: '100%', aspectRatio: 1.8, backgroundColor: c.photoPlaceholder },
   lockedPhoto: { alignItems: 'center', justifyContent: 'center', backgroundColor: c.photoPlaceholder },
   lockedHero: { gap: 14, padding: 24 },
   lockedTitle: { color: c.textMuted, fontSize: 18, fontWeight: '700' },
   lockedCopy: { color: c.textMuted, fontSize: 13, lineHeight: 20, textAlign: 'center', maxWidth: 280 },
-  tileBody: { padding: 14, gap: 9 },
-  tileTitle: { color: c.text, fontSize: 16, lineHeight: 22, fontWeight: '700' },
+  tileBody: { padding: 10, gap: 6 },
+  tileTitle: { color: c.text, fontSize: 15, lineHeight: 20, fontWeight: '700' },
   tileCountRow: { flexDirection: 'row', alignItems: 'baseline', gap: 5 },
-  tileCount: { color: c.accent, fontSize: 27, lineHeight: 32, fontWeight: '800' },
+  tileCount: { color: c.accent, fontSize: 24, lineHeight: 28, fontWeight: '800' },
   undiscovered: { color: c.textMuted, fontSize: 11, lineHeight: 17 },
-  badgePill: { alignSelf: 'flex-start', borderWidth: 1, borderRadius: 8, paddingVertical: 3, paddingHorizontal: 7 },
+  badgePill: { alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 4, borderWidth: 1, borderRadius: 8, paddingVertical: 3, paddingHorizontal: 7 },
   pillLabel: { fontSize: 11, lineHeight: 17, fontWeight: '700' },
   heroPhotoFrame: { borderRadius: 18, overflow: 'hidden', backgroundColor: c.surface, borderWidth: 1, borderColor: c.border },
   heroPhoto: { width: '100%', height: 260 },
@@ -190,7 +195,6 @@ const createStyles = (c: AppColors) => StyleSheet.create({
   track: { height: 7, backgroundColor: c.accentBorder, borderRadius: 4, overflow: 'hidden' },
   fill: { height: '100%', borderRadius: 4 },
   medal: { width: 46, height: 46, borderRadius: 23, borderWidth: 2, alignItems: 'center', justifyContent: 'center', backgroundColor: c.photoPlaceholder },
-  medalSymbol: { fontSize: 27, lineHeight: 32 },
   emptyMedal: { width: 46, height: 46, borderWidth: 1, borderStyle: 'dashed', borderColor: c.lock, borderRadius: 23, alignItems: 'center', justifyContent: 'center' },
   credit: { gap: 6 },
   sourceLink: { color: c.accent, fontSize: 12, lineHeight: 20, paddingVertical: 8, alignSelf: 'flex-start' },

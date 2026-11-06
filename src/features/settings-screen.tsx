@@ -3,6 +3,7 @@ import { router } from 'expo-router';
 import { Switch, View } from 'react-native';
 import { useAppTheme } from '@/hooks/use-app-theme';
 import { useGame } from './game';
+import { useAccount } from './account-context';
 import { usePreferences } from './preferences';
 import { Button, Card, Choices, Copy, Field, Label, Message, Page, useUIStyles, Title } from './ui';
 
@@ -10,6 +11,7 @@ export function SettingsScreen() {
   const s = useUIStyles();
   const colors = useAppTheme();
   const { displayName, mode } = useGame();
+  const account = useAccount();
   const { showHints, themeMode, ready, saving, error, setShowHints, setThemeMode, retry } = usePreferences();
   return <Page>
     <Title>Po Twojemu</Title>
@@ -31,9 +33,11 @@ export function SettingsScreen() {
       <Message text={error} />
       {!ready && !!error && <Button title="Ponów odczyt ustawień" secondary onPress={retry} />}
     </Card>
+    {account && <Card><Label>Konto</Label><Copy>{account.isGuest ? 'Grasz jako gość. Zabezpiecz konto, żeby zachować dostęp po zmianie telefonu.' : account.email}</Copy>
+      <Button title={account.isGuest ? 'Zabezpiecz konto lub zaloguj się' : 'Zarządzaj kontem'} secondary disabled={account.busy} onPress={() => router.push('/account')} /></Card>}
     {mode === 'online' && <NicknameSettings />}
     <Card><Label>Twój profil</Label><Copy>Grasz jako {displayName}.</Copy><Button title="Zobacz profil" secondary onPress={() => router.push('/profile')} /></Card>
-    <Card><Label>O GrzyBet</Label><Copy>Wspólne grzybobranie i typowanie dla znajomych. Gra toczy się o punkty.</Copy><Copy>{mode === 'online' ? 'Gra online: lobby, odpowiedzi i wyniki są synchronizowane między telefonami. Konto gościa jest zapamiętane na tym urządzeniu.' : 'Wersja lokalna: pokoje i zdjęcia są zapisane na tym urządzeniu. Gra online wymaga podłączenia projektu.'}</Copy></Card>
+    <Card><Label>O GrzyBet</Label><Copy>Wspólne grzybobranie i typowanie dla znajomych. Gra toczy się o punkty.</Copy><Copy>{mode === 'online' ? 'Gra online: lobby, odpowiedzi i wyniki są synchronizowane między telefonami. Możesz grać jako gość lub korzystać z konta z e-mailem i hasłem.' : 'Wersja lokalna: pokoje i zdjęcia są zapisane na tym urządzeniu. Gra online wymaga podłączenia projektu.'}</Copy></Card>
   </Page>;
 }
 

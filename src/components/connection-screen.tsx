@@ -2,7 +2,7 @@ import type { AppColors } from '@/constants/app-theme';
 import { useAppTheme, useThemedStyles } from '@/hooks/use-app-theme';
 import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { MushroomIcon } from './grzybet-icons';
+import { ExclamationIcon, MushroomIcon } from './grzybet-icons';
 import { FloatingView, MotionPressable as Pressable, MotionView } from './motion';
 
 type ConnectionStage = 'connecting' | 'syncing' | 'restoring';
@@ -26,7 +26,7 @@ export function ConnectionScreen({ stage, error = '', onRetry }: {
       <MotionView distance={0} style={styles.main}>
         <FloatingView active={!failed} accessible={false} importantForAccessibility="no-hide-descendants" style={styles.emblem}>
           <MushroomIcon size={112} color={colors.primary} stemColor={colors.mushroomStem} spotColor={colors.mushroomSpots} />
-          {failed && <View style={styles.warning}><Text style={styles.warningText}>!</Text></View>}
+          {failed && <View style={styles.warning}><ExclamationIcon color={colors.warningText} /></View>}
         </FloatingView>
         {failed && <View style={styles.message}>
           <Text accessibilityRole="header" style={styles.title}>{errorTitles[stage]}</Text>
@@ -54,7 +54,6 @@ const createStyles = (c: AppColors) => StyleSheet.create({
   emblem: { width: 188, height: 188, alignItems: 'center', justifyContent: 'center' },
   warning: { position: 'absolute', right: 4, bottom: 9, width: 36, height: 36, borderRadius: 18,
     backgroundColor: c.warning, borderWidth: 4, borderColor: c.background, alignItems: 'center', justifyContent: 'center' },
-  warningText: { color: c.warningText, fontSize: 18, lineHeight: 22, fontWeight: '900' },
   message: { width: '100%', alignItems: 'center', gap: 12 },
   title: { color: c.text, fontSize: 27, lineHeight: 34, fontWeight: '800', letterSpacing: -0.7, textAlign: 'center' },
   description: { maxWidth: 320, color: c.textMuted, fontSize: 14, lineHeight: 22, textAlign: 'center' },

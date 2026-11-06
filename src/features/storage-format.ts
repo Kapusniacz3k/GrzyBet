@@ -138,6 +138,8 @@ function room(value: unknown, index: number, legacy: boolean): Room {
   const harvests = data.harvests.map((value, i) => harvest(value, members, `${path}.harvests[${i}]`));
   if (new Set(harvests.map(item => item.id)).size !== harvests.length) invalid(`${path}.harvests`);
   const finishedAt = data.finishedAt === undefined ? undefined : date(data.finishedAt, `${path}.finishedAt`);
+  const predictionStartedAt = data.predictionStartedAt === undefined ? undefined : date(data.predictionStartedAt, `${path}.predictionStartedAt`);
+  if (phase === 'lobby' && predictionStartedAt !== undefined) invalid(`${path}.predictionStartedAt`);
   if ((phase === 'finished') !== (finishedAt !== undefined)) invalid(`${path}.finishedAt`);
   if (phase === 'finished' && harvests.some(item => item.status === 'pending')) invalid(`${path}.harvests`);
   if ((phase === 'lobby' || phase === 'predicting') && harvests.length) invalid(`${path}.harvests`);
@@ -147,6 +149,7 @@ function room(value: unknown, index: number, legacy: boolean): Room {
     limit, members, host, joined, closed, phase: phase as Room['phase'], tickets, answers, harvests,
     ...(currentTicket === undefined ? {} : { ticket: currentTicket }),
     ...(finishedAt === undefined ? {} : { finishedAt }),
+    ...(predictionStartedAt === undefined ? {} : { predictionStartedAt }),
   };
 }
 
