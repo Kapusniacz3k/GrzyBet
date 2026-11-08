@@ -1,10 +1,13 @@
 import { species } from './mushroom-species.ts';
+import type { CouponWallet } from './coupons';
 export { species };
 
 export type Phase = 'lobby' | 'predicting' | 'collecting' | 'finished';
-export type Ticket = { winner: string; own: number; total: number; species: string };
+export type GameMode = 'classic' | 'coupons';
+export type RoomCreation = { name: string; limit: number; gameMode?: GameMode };
 export const questionKeys = ['winner', 'own', 'total', 'species'] as const;
 export type QuestionKey = typeof questionKeys[number];
+export type Ticket = { winner: string; own: number; total: number; species: string; boost?: QuestionKey };
 export type Harvest = {
   id: string;
   member: string;
@@ -22,6 +25,12 @@ export type Room = {
   code: string;
   /** Room creation time; the trip's displayed date comes from this timestamp. */
   date: string;
+  /** Missing in older trips, which retain their original scoring rules. */
+  scoringVersion?: 2;
+  /** Missing in older rooms means the original four-question mode. */
+  gameMode?: GameMode;
+  couponVersion?: 1;
+  couponBook?: Record<string, CouponWallet>;
   limit: number;
   members: string[];
   host: string;
@@ -42,12 +51,22 @@ export type Room = {
   readyIds?: string[];
 };
 export type ResultBreakdown = { winner: number; own: number; total: number; species: number };
+export type PredictionResult = {
+  key: QuestionKey;
+  predicted: string | number;
+  actual: string[] | number;
+  difference?: number;
+  basePoints: number;
+  multiplier: 1 | 2;
+  points: number;
+};
 export type ResultRow = {
   member: string;
   mushrooms: number;
   points: number;
   place: number;
   breakdown: ResultBreakdown;
+  predictions: PredictionResult[];
 };
 
 const MAX_COUNT = 999999;
@@ -73,7 +92,7 @@ export function statusLabel(room: Room) {
   if (room.phase === 'finished') return 'Zakończono';
   if (room.phase === 'collecting') return 'Poszukiwania w toku';
   if (room.phase === 'lobby') return 'Lobby · czekamy na start';
-  return everyoneReady(room) ? 'Gotowi do poszukiwań' : 'Odpowiadamy na pytania';
+  return everyoneReady(room) ? 'Gotowi do poszukiwań' : room.gameMode === 'coupons' ? 'Zakłady otwarte' : 'Odpowiadamy na pytania';
 }
 
 export function answeredCount(room: Room, actor: string) {
@@ -99,6 +118,7 @@ export function memberName(room: Room, actor: string) {
 
 function assertAnswering(room: Room, actor: string) {
   assertMember(room, actor);
+  if (room.gameMode === 'coupons') throw new Error('W tej wyprawie stawiamy kupony zamiast odpowiadać na cztery pytania.');
   if (isClosed(room)) throw new Error('Pytania są dostępne dopiero po starcie typowania przez organizatora.');
   if (room.tickets[actor]) throw new Error('Twoje odpowiedzi są już zatwierdzone.');
 }
@@ -141,7 +161,10 @@ export function saveTicket(room: Room, ticket: Ticket, actor: string): Room {
     throw new Error('Wpisz pełne liczby od 0 do 999999.');
   }
   if (ticket.total < ticket.own) throw new Error('Wynik ekipy nie może być mniejszy od Twojego.');
-  const saved = { ...ticket };
+  if (Object.keys(ticket).some(key => ![...questionKeys, 'boost'].includes(key))) throw new Error('Kupon zawiera nieznane pola.');
+  if (ticket.boost !== undefined && (room.scoringVersion !== 2 || !questionKeys.includes(ticket.boost))) throw new Error('Wybierz najwyżej jednego pewniaka spośród czterech pytań.');
+  const saved: Ticket = { winner: ticket.winner, own: ticket.own, total: ticket.total, species: ticket.species,
+    ...(ticket.boost === undefined ? {} : { boost: ticket.boost }) };
   const answers = { ...room.answers };
   delete answers[actor];
   return {
@@ -162,7 +185,7 @@ export function transitionRoom(
   if (room.phase === 'finished') throw new Error('Ta wyprawa jest już zakończona.');
   if (action === 'begin' && room.phase === 'lobby') return { ...room, phase: 'predicting', closed: true, predictionStartedAt: new Date(now).toISOString() };
   if (action === 'start' && room.phase === 'predicting') {
-    if (!everyoneReady(room)) throw new Error('Poczekaj, aż wszyscy uczestnicy zakończą pytania.');
+    if (!everyoneReady(room)) throw new Error(room.gameMode === 'coupons' ? 'Poczekaj, aż wszyscy zakończą stawianie kuponów.' : 'Poczekaj, aż wszyscy uczestnicy zakończą pytania.');
     return { ...room, phase: 'collecting', closed: true };
   }
   if (action === 'finish' && room.phase === 'collecting') {
@@ -222,6 +245,13 @@ export function reviewHarvest(
   };
 }
 
+export function numericPredictionPoints(predicted: number, actual: number, maxDifference: 5 | 10): number {
+  const difference = Math.abs(predicted - actual);
+  if (difference > maxDifference) return 0;
+  if (difference <= 5) return [100, 80, 60, 40, 30, 20][difference] ?? 0;
+  return 10;
+}
+
 /** Only approved harvests count. Ties share a place, without an arbitrary tie-break. */
 export function calculateResults(room: Room): ResultRow[] {
   const totals = new Map(room.members.map(member => [member, 0]));
@@ -234,18 +264,31 @@ export function calculateResults(room: Room): ResultRow[] {
   const teamTotal = [...totals.values()].reduce((sum, count) => sum + count, 0);
   const mostMushrooms = Math.max(0, ...totals.values());
   const mostSpecies = Math.max(0, ...bySpecies.values());
+  const winners = mostMushrooms > 0 ? [...totals].filter(([, count]) => count === mostMushrooms).map(([member]) => member) : [];
+  const leadingSpecies = mostSpecies > 0 ? [...bySpecies].filter(([, count]) => count === mostSpecies).map(([kind]) => kind) : [];
   const rows = room.members.map(member => {
     const mushrooms = totals.get(member) ?? 0;
     const ticket = room.tickets[member] ?? (member === 'Kuba' ? room.ticket : undefined);
     const breakdown: ResultBreakdown = { winner: 0, own: 0, total: 0, species: 0 };
+    let predictions: PredictionResult[] = [];
     if (ticket) {
       const difference = Math.abs(ticket.own - mushrooms);
-      breakdown.winner = mostMushrooms > 0 && totals.get(ticket.winner) === mostMushrooms ? 100 : 0;
-      breakdown.own = difference === 0 ? 100 : difference <= 3 ? 70 : difference <= 5 ? 40 : 0;
-      breakdown.total = ticket.total === teamTotal ? 100 : 0;
-      breakdown.species = mostSpecies > 0 && bySpecies.get(ticket.species) === mostSpecies ? 50 : 0;
+      const enhanced = room.scoringVersion === 2;
+      const base: ResultBreakdown = {
+        winner: winners.includes(ticket.winner) ? 100 : 0,
+        own: enhanced ? numericPredictionPoints(ticket.own, mushrooms, 5) : difference === 0 ? 100 : difference <= 3 ? 70 : difference <= 5 ? 40 : 0,
+        total: enhanced ? numericPredictionPoints(ticket.total, teamTotal, 10) : ticket.total === teamTotal ? 100 : 0,
+        species: leadingSpecies.includes(ticket.species) ? 50 : 0,
+      };
+      const actual = { winner: winners, own: mushrooms, total: teamTotal, species: leadingSpecies };
+      predictions = questionKeys.map(key => {
+        const multiplier = enhanced && ticket.boost === key ? 2 : 1;
+        breakdown[key] = base[key] * multiplier;
+        return { key, predicted: ticket[key], actual: actual[key], basePoints: base[key], multiplier, points: breakdown[key],
+          ...(key === 'own' || key === 'total' ? { difference: Math.abs(ticket[key] - actual[key]) } : {}) };
+      });
     }
-    return { member, mushrooms, breakdown, points: Object.values(breakdown).reduce((sum, value) => sum + value, 0), place: 0 };
+    return { member, mushrooms, breakdown, predictions, points: Object.values(breakdown).reduce((sum, value) => sum + value, 0), place: 0 };
   }).sort((a, b) => b.points - a.points);
   return rows.map(row => ({
     ...row,

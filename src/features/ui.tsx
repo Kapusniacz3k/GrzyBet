@@ -2,17 +2,21 @@ import type { ReactNode } from 'react';
 import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, View, type StyleProp, type ViewStyle, type TextInputProps } from 'react-native';
 import { MotionPressable as Pressable, MotionView } from '@/components/motion';
 import { usePreferences } from './preferences';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, type Edge } from 'react-native-safe-area-context';
 import { useHasBottomNavigation } from '@/components/app-navigation';
 import type { AppColors } from '@/constants/app-theme';
 import { useAppTheme, useThemedStyles } from '@/hooks/use-app-theme';
-export function Page({ children, contentStyle }: { children: ReactNode; contentStyle?: StyleProp<ViewStyle> }) {
+export function Page({ children, contentStyle, topInset = true, footer }: { children: ReactNode; contentStyle?: StyleProp<ViewStyle>; topInset?: boolean; footer?: ReactNode }) {
   const s = useUIStyles();
   const hasBottomNavigation = useHasBottomNavigation();
-  return <SafeAreaView style={s.fill} edges={hasBottomNavigation ? ['top', 'left', 'right'] : ['top', 'left', 'right', 'bottom']}>
+  const edges: Edge[] = ['left', 'right'];
+  if (topInset) edges.push('top');
+  if (!hasBottomNavigation) edges.push('bottom');
+  return <SafeAreaView style={s.fill} edges={edges}>
     <MotionView style={s.fill}>
     <KeyboardAvoidingView style={s.fill} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={[s.page, contentStyle]}>{children}</ScrollView>
+      {footer}
     </KeyboardAvoidingView>
     </MotionView>
   </SafeAreaView>;

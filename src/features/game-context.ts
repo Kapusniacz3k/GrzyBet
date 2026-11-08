@@ -1,5 +1,6 @@
 import { createContext, useContext } from 'react';
-import type { Room, Ticket, Harvest, QuestionKey } from './domain';
+import type { Room, RoomCreation, Ticket, Harvest, QuestionKey } from './domain';
+import type { CouponPicks } from './coupons';
 
 export type Game = {
   rooms: Room[];
@@ -8,7 +9,9 @@ export type Game = {
   mode: 'local' | 'online';
   busy: boolean;
   setDisplayName?: (name: string) => Promise<void>;
-  create: (data: Pick<Room, 'name' | 'limit'>) => Promise<string>;
+  create: (data: RoomCreation) => Promise<string>;
+  placeCoupon: (id: string, picks: CouponPicks, stake: number) => Promise<void>;
+  finishCoupons: (id: string) => Promise<void>;
   join: (code: string) => Promise<string>;
   save: (id: string, ticket: Ticket) => Promise<void>;
   answer: (id: string, key: QuestionKey, value: string | number) => Promise<void>;

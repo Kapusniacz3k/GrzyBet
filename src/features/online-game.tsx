@@ -185,6 +185,8 @@ export function OnlineGameProvider({ children }: { children: ReactNode }) {
   const game: Game = {
     rooms, userId: session.user.uid, displayName, mode: 'online', busy, setDisplayName,
     create: data => operate(repo => repo.create(data)),
+    placeCoupon: (id, picks, stake) => operate(repo => repo.placeCoupon(id, picks, stake)),
+    finishCoupons: id => operate(repo => repo.finishCoupons(id)),
     join: code => operate(repo => repo.join(code)),
     answer: (id, key, value) => operate(repo => repo.answer(id, key, value)),
     restart: id => operate(repo => repo.restart(id)),

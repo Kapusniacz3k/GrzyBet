@@ -67,15 +67,31 @@ Przy pierwszym budowaniu wybierz wygenerowanie klucza podpisującego przez Expo.
 - Podczas wysyłania widać postęp. Błąd nie usuwa wybranego zdjęcia ani wpisanych danych; można ponowić zgłoszenie. Jeśli zapis zgłoszenia nie powiedzie się po wysłaniu zdjęcia, aplikacja usuwa nieużywany plik w Storage.
 - Błąd odczytu nie usuwa istniejących zapisów i daje możliwość ponowienia.
 
+## Dwa tryby wyprawy
+
+Organizator wybiera tryb podczas tworzenia pokoju. Starsze pokoje pozostają w trybie Typowanie.
+
+- **Typowanie**: cztery pytania, opcjonalny pewniak ×2 i punktacja opisana poniżej.
+- **Kupony**: nowe 10 wirtualnych grzybków dla każdego na każdą wyprawę. Po otwarciu zakładów widać jedną stronę oferty: zwycięzca, własny zbiór, zbiór ekipy i najczęstszy gatunek. Kupon łączy 1–4 typy (jeden na kategorię), kursy się mnożą. Stawka to pełne 1–10 grzybków; suma stawek nie przekracza 10. Pasek stawki i możliwej wygranej pozostaje nad dolną nawigacją podczas wybierania typów.
+- Kursy wersji 1 są z góry ustalone. Kurs zwycięzcy wynosi `max(1.50, liczba graczy × 1.50)`, gatunku `5.00`, a linie liczbowe mają kursy z `couponLines`. To mechanika punktowa, bez pieniędzy i zewnętrznego bukmachera. Kurs łączny zaokrąglamy do dwóch miejsc, rozliczenie prowadzimy w setnych grzybka.
+- Każdy sam kończy stawianie. Można zostać z niewydanym saldem lub bez kuponów. Po gotowości kuponów nie można już dopisywać; gospodarz rozpoczyna poszukiwania dopiero po gotowości wszystkich.
+- W trakcie zbiorów nadal widać tylko Zbiory. Dopiero gospodarz kończy wyprawę i odsłania wyniki: każdy typ kuponu, trafienie, kurs, stawkę, wygraną i bilans. Kupon wygrywa, gdy trafione są wszystkie typy. Wygrana zawiera stawkę. Przy remisie trafia każdy wspólny zwycięzca lub najczęstszy gatunek; przy zerowych zbiorach nie ma zwycięzcy ani gatunku.
+- Ranking Kuponów porównuje stan końcowy: `10 − postawione stawki + wygrane ze stawką`. Kupony innych graczy są prywatne do zakończenia. Historia pokazuje oba tryby, statystyka punktów zachowuje wyłącznie klasyczne typowanie, a zbiory z obu trybów zasilają Grzybedex.
+- Zapisy online dopisują kupon i odejmują saldo atomowo. Reguły blokują podmianę historii, stawki ponad saldo, własne kursy, edycję trybu i stawianie po gotowości lub starcie zbiorów. Testy tych zapisów używają emulatorów `demo-grzybet`.
+
 ## Zasady punktacji
 
 Do wyników wliczamy wyłącznie zatwierdzone zbiory.
 
 - Zwycięzca zbiorów: 100 pkt.
-- Własna liczba grzybów: dokładnie 100 pkt; pomyłka do 3 szt. 70 pkt; do 5 szt. 40 pkt.
-- Dokładna liczba grzybów całej ekipy: 100 pkt.
+- Własna liczba grzybów i wynik ekipy: dokładnie 100 pkt; pomyłka o 1 szt. 80 pkt, o 2 szt. 60 pkt, o 3 szt. 40 pkt, o 4 szt. 30 pkt, o 5 szt. 20 pkt.
+- Własny zbiór: pomyłka powyżej 5 szt. daje 0 pkt. Wynik ekipy: pomyłka o 6–10 szt. daje jeszcze 10 pkt, powyżej 10 szt. 0 pkt.
 - Najczęstszy gatunek: 50 pkt.
-- Maksymalnie 350 pkt.
+- Przed zatwierdzeniem kuponu można wskazać jednego pewniaka ×2. Podwaja tylko punkty wybranego pytania, także przy częściowym trafieniu. Widać cztery pytania; ponowne dotknięcie wybranego pytania odznacza pewniaka. Po zatwierdzeniu nie można zmienić pewniaka.
+- „Jak liczymy punkty?” to dyskretny przycisk z pytajnikiem, podobny do pomocy na ekranie głównym — dotknięcie rozwija lub chowa zasady. Nazwa pokoju jest ukryta przez cały etap typowania.
+- Maksymalnie 450 pkt przy pewniaku na jednym z pytań za 100 pkt; przy pewniaku na gatunku maksymalnie 400 pkt, bez pewniaka 350 pkt.
+- Nowe pokoje zapisują `scoringVersion: 2`. Starsze pokoje bez tej wersji zachowują pierwotne zasady (własny zbiór 100/70/40 pkt, ekipa tylko dokładnie), co chroni wyniki historii. Reguły Firestore dopuszczają wyłącznie cztery zapisane odpowiedzi i co najwyżej jeden poprawny klucz `boost`; nie można dopisać mnożnika ani podmienić odpowiedzi podczas zatwierdzania.
+- Po zakończeniu wyniki domyślnie otwierają typowanie z rozwiniętym własnym kuponem: typ, rzeczywisty wynik, różnica liczbowa, punkty bazowe i działanie ×2. Pozostałe kupony rozwija się osobno; przed zakończeniem te rozliczenia są ukryte.
 - Remisy mają wspólne miejsce. Każdy zwycięzca i każdy najczęstszy gatunek przy remisie zalicza trafienie.
 - Przy zerowych zbiorach nie ma zwycięzcy ani najczęstszego gatunku; liczbowe typy na zero mogą zdobyć punkty.
 - Kupon bez zapisanych typów: 0 pkt.
@@ -84,16 +100,16 @@ Do wyników wliczamy wyłącznie zatwierdzone zbiory.
 ## Jak sprawdzić pełną wyprawę
 
 1. Utwórz nowy pokój. W wersji lokalnej jesteś w nim jedynym uczestnikiem, więc możesz sam sprawdzić pełny przebieg.
-2. W lobby sprawdź, że Typowanie pokazuje oczekiwanie na organizatora.
-3. Wybierz Start — rozpocznij pytania i potwierdź.
+2. W lobby sprawdź, że zakładka Typowanie jest ukryta do rozpoczęcia pytań przez organizatora. Kod pokoju widać tylko w lobby; po rozpoczęciu typowania znika. W pokoju i podczas pytań nie wyświetlamy daty ani godziny startu.
+3. Wybierz Rozpocznij typowanie i potwierdź.
 4. Odpowiedz kolejno: Kuba, 12 własnych, 12 całej ekipy, Borowik.
 5. Możesz zamknąć aplikację między pytaniami — po powrocie zobaczysz następne niezakończone pytanie.
-6. Zatwierdź podsumowanie. W lobby zobaczysz Gotowi: 1 / 1, ale poszukiwania jeszcze nie wystartują.
+6. W podsumowaniu wybierz „Twój zbiór” jako pewniaka ×2 i zatwierdź. W lobby zobaczysz Gotowi: 1 / 1, ale poszukiwania jeszcze nie wystartują.
 7. Wybierz Wystartuj poszukiwania i potwierdź.
 8. W Zbiorach wybierz Borowik, 12 sztuk i dołącz zdjęcie.
 9. Wyślij zgłoszenie. Wynik pozostaje 0 do zatwierdzenia. Oczekujące zgłoszenie blokuje zakończenie.
 10. Zatwierdź zgłoszenie i zakończ wyprawę w panelu organizatora pod zbiorami. U wszystkich graczy automatycznie otworzą się wyniki.
-11. W Wynikach zobacz 12 grzybów i 350 pkt; w Profilu historię i własne statystyki.
+11. W Wynikach zobacz 12 grzybów i 450 pkt z rozpisanym kuponem; w Profilu historię i własne statystyki.
 
 Przykładowe lobby w Gorcach: GRZ482. Dołączanie do drugiego przykładowego pokoju: LAS219.
 Przykładowi uczestnicy nie odpowiadają automatycznie. W pokoju z kilkoma osobami przycisk poszukiwań pozostaje zablokowany, dopóki wszyscy nie potwierdzą typów.

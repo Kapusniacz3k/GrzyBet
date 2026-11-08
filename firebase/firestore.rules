@@ -48,7 +48,11 @@ service cloud.firestore {
       allow get: if signed() && (uid() in resource.data.memberIds || resource.data.phase == 'lobby');
       allow list: if signed() && uid() in resource.data.memberIds;
       allow create: if signed()
-        && request.resource.data.keys().hasOnly(['name', 'code', 'startsAt', 'limit', 'host', 'memberIds', 'readyIds', 'phase', 'pendingCount', 'lastHarvestId', 'createdAt', 'finishedAt', 'predictionStartedAt'])
+        && request.resource.data.keys().hasOnly(['name', 'code', 'startsAt', 'limit', 'host', 'memberIds', 'readyIds', 'phase', 'pendingCount', 'lastHarvestId', 'createdAt', 'finishedAt', 'predictionStartedAt', 'scoringVersion', 'gameMode', 'couponVersion'])
+        && (!('scoringVersion' in request.resource.data) || request.resource.data.scoringVersion == 2)
+        && request.resource.data.get('gameMode', 'classic') in ['classic', 'coupons']
+        && (request.resource.data.get('gameMode', 'classic') == 'coupons'
+          ? request.resource.data.couponVersion == 1 : !('couponVersion' in request.resource.data))
         && request.resource.data.name is string && request.resource.data.name.size() >= 3 && request.resource.data.name.size() <= 60
         && request.resource.data.limit is int && request.resource.data.limit >= 2 && request.resource.data.limit <= 30
         && request.resource.data.startsAt == request.time
@@ -73,7 +77,8 @@ service cloud.firestore {
         return uid() in resource.data.memberIds && resource.data.phase == 'predicting'
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['readyIds'])
           && addedSelf(resource.data.readyIds, request.resource.data.readyIds)
-          && !exists(ticketPath(id, uid())) && existsAfter(ticketPath(id, uid()));
+          && (resource.data.get('gameMode', 'classic') == 'coupons'
+            || (!exists(ticketPath(id, uid())) && existsAfter(ticketPath(id, uid()))));
       }
       function changingPhase() {
         return resource.data.host == uid()
@@ -110,7 +115,7 @@ service cloud.firestore {
           && request.resource.data.name is string && request.resource.data.name.size() >= 2 && request.resource.data.name.size() <= 24
           && request.resource.data.progress == 0 && request.resource.data.joinedAt == request.time
           && afterRoom(id).phase == 'lobby' && uid() in afterRoom(id).memberIds;
-        allow update: if member(id) && user == uid() && room(id).phase == 'predicting'
+        allow update: if member(id) && user == uid() && room(id).phase == 'predicting' && room(id).get('gameMode', 'classic') == 'classic'
           && !exists(ticketPath(id, uid()))
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['progress'])
           && ((existsAfter(answerPath(id, uid())) && request.resource.data.progress == getAfter(answerPath(id, uid())).data.values.keys().size())
@@ -120,7 +125,7 @@ service cloud.firestore {
       match /answers/{user} {
         allow get: if member(id) && user == uid();
         allow list: if false;
-        allow create, update: if member(id) && user == uid() && room(id).phase == 'predicting'
+        allow create, update: if member(id) && user == uid() && room(id).phase == 'predicting' && room(id).get('gameMode', 'classic') == 'classic'
           && !exists(ticketPath(id, uid())) && request.resource.data.keys().hasOnly(['values'])
           && validAnswers(request.resource.data.values, room(id).memberIds)
           && ((!exists(answerPath(id, user)) && request.resource.data.values.keys().size() == 1)
@@ -128,18 +133,63 @@ service cloud.firestore {
               && request.resource.data.values.keys().size() == resource.data.values.keys().size() + 1
               && request.resource.data.values.diff(resource.data.values).affectedKeys().size() == 1))
           && getAfter(participantPath(id, uid())).data.progress == request.resource.data.values.keys().size();
-        allow delete: if member(id) && user == uid() && room(id).phase == 'predicting' && !exists(ticketPath(id, uid()))
+        allow delete: if member(id) && user == uid() && room(id).phase == 'predicting' && room(id).get('gameMode', 'classic') == 'classic' && !exists(ticketPath(id, uid()))
           && (existsAfter(ticketPath(id, uid())) || getAfter(participantPath(id, uid())).data.progress == 0);
       }
       match /tickets/{user} {
         allow get: if member(id) && (user == uid() || room(id).phase in ['collecting', 'finished']);
         allow list: if member(id) && room(id).phase in ['collecting', 'finished'];
-        allow create: if member(id) && user == uid() && room(id).phase == 'predicting'
+        allow create: if member(id) && user == uid() && room(id).phase == 'predicting' && room(id).get('gameMode', 'classic') == 'classic'
           && request.resource.data.keys().hasOnly(['values'])
-          && request.resource.data.values.keys().size() == 4 && validAnswers(request.resource.data.values, room(id).memberIds)
-          && request.resource.data.values == get(answerPath(id, uid())).data.values
+          && validConfirmedTicket()
           && !(uid() in room(id).readyIds) && uid() in afterRoom(id).readyIds;
         allow update, delete: if false;
+        function validConfirmedTicket() {
+          let values = request.resource.data.values;
+          let answers = get(answerPath(id, uid())).data.values;
+          return values is map && values.keys().hasAll(['winner', 'own', 'total', 'species'])
+            && values.keys().hasOnly(['winner', 'own', 'total', 'species', 'boost'])
+            && answers.keys().size() == 4 && validAnswers(answers, room(id).memberIds)
+            && values.diff(answers).affectedKeys().hasOnly(['boost'])
+            && (!('boost' in values) || (room(id).get('scoringVersion', 1) == 2 && values.boost in ['winner', 'own', 'total', 'species']));
+        }
+      }
+      match /coupons/{user} {
+        allow get: if member(id) && room(id).get('gameMode', 'classic') == 'coupons'
+          && (user == uid() || room(id).phase == 'finished');
+        allow list: if member(id) && room(id).get('gameMode', 'classic') == 'coupons' && room(id).phase == 'finished';
+        allow create: if openCoupons() && appending(0, []);
+        allow update: if openCoupons() && appending(resource.data.spent, resource.data.slips);
+        allow delete: if false;
+
+        function openCoupons() {
+          return member(id) && user == uid() && room(id).get('gameMode', 'classic') == 'coupons'
+            && room(id).couponVersion == 1 && room(id).phase == 'predicting'
+            && afterRoom(id).phase == 'predicting' && !(uid() in afterRoom(id).readyIds)
+            && request.resource.data.keys().hasAll(['spent', 'slips'])
+            && request.resource.data.keys().hasOnly(['spent', 'slips'])
+            && request.resource.data.slips is list && request.resource.data.slips.size() >= 1
+            && request.resource.data.slips.size() <= 10 && request.resource.data.spent is int;
+        }
+        function appending(spent, slips) {
+          let next = request.resource.data;
+          let coupon = next.slips[next.slips.size() - 1];
+          return validCoupon(coupon) && next.slips == slips.concat([coupon])
+            && next.spent == spent + coupon.stake && next.spent <= 10;
+        }
+        function validCoupon(coupon) {
+          let picks = coupon.picks;
+          return coupon is map && coupon.keys().hasAll(['id', 'stake', 'picks'])
+            && coupon.keys().hasOnly(['id', 'stake', 'picks'])
+            && coupon.id is string && coupon.id.matches('[a-zA-Z0-9_-]{8,80}')
+            && coupon.stake is int && coupon.stake >= 1 && coupon.stake <= 10
+            && picks is map && picks.keys().size() >= 1
+            && picks.keys().hasOnly(['winner', 'own', 'total', 'species'])
+            && (!('winner' in picks) || picks.winner in room(id).memberIds)
+            && (!('own' in picks) || picks.own in ['over5', 'under5', 'over10', 'under10', 'over20', 'under20'])
+            && (!('total' in picks) || picks.total in ['over20', 'under20', 'over50', 'under50', 'over100', 'under100'])
+            && (!('species' in picks) || species(picks.species));
+        }
       }
       match /harvests/{hid} {
         allow read: if member(id);

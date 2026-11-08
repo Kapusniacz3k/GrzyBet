@@ -6,13 +6,23 @@ import Animated, { FadeIn, FadeOut, ReduceMotion, useReducedMotion } from 'react
 import { MotionPressable as Pressable, MotionView, motionLayout } from '@/components/motion';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { CloseIcon, PlusIcon } from '@/components/grzybet-icons';
+import { boostScoringCopy, numericScoringCopy, numericToleranceCopy } from './prediction-copy';
 
 const chapters = [
   {
     title: 'Zbierz ekipę',
     paragraphs: [
-      'Stwórz pokój, wybierz nazwę i limit uczestników, a potem przekaż znajomym kod. Data wyprawy to dzień utworzenia pokoju. Godzinę startu zapisujemy, gdy organizator rozpocznie typowanie.',
-      'Wszyscy spotykacie się w lobby i czekacie, aż organizator uruchomi pytania. Po ich rozpoczęciu nie można już dołączyć.',
+      'Stwórz pokój, wybierz nazwę, limit uczestników i tryb: Typowanie albo Kupony. Przekaż znajomym kod.',
+      'Wszyscy spotykacie się w lobby i czekacie, aż organizator rozpocznie typowanie lub otworzy zakłady. Po starcie nie można już dołączyć.',
+    ],
+  },
+  {
+    title: 'Tryb Kupony',
+    paragraphs: [
+      'Każdy zaczyna każdą wyprawę z nowymi 10 grzybkami. To punkty w grze. Na wspólnej stronie zakładów wybierasz zwycięzcę, własny zbiór, wynik ekipy lub najczęstszy gatunek.',
+      'Na jednym kuponie możesz połączyć od 1 do 4 typów, po jednym z każdej kategorii. Kursy mnożą się, a wszystkie typy muszą trafić. Podaj pełną stawkę od 1 grzybka. Możesz postawić kilka kuponów w granicach salda.',
+      'Kursy są stałe w tej wyprawie. Wygrana zawiera stawkę. Remis zalicza każdego zwycięzcę i każdy najczęstszy gatunek; przy pustym koszyku nie ma zwycięzcy ani najczęstszego gatunku.',
+      'Gdy skończysz, oznacz gotowość. Możesz zakończyć także bez kuponu. Gospodarz rusza na zbiory dopiero po gotowości całej ekipy. Wyniki i kupony innych graczy odsłaniamy po zakończeniu wyprawy. Wygrywa najwyższy stan końcowy: niewydane grzybki plus wygrane kuponów.',
     ],
   },
   {
@@ -20,12 +30,13 @@ const chapters = [
     paragraphs: [
       'Pytania pojawiają się pojedynczo. Typujesz, kto zbierze najwięcej grzybów, ile zbierzesz Ty, ile zbierze cała ekipa i jaki gatunek będzie najczęstszy.',
       'Każdy odpowiada we własnym tempie. Na końcu sprawdź podsumowanie i zatwierdź typy — od tej chwili nie można ich zmienić.',
+      'Przed zatwierdzeniem możesz wybrać jednego pewniaka ×2. Po zatwierdzeniu jego wybór też jest zablokowany.',
     ],
   },
   {
     title: 'Poczekaj na start poszukiwań',
     paragraphs: [
-      'Gdy wszyscy zatwierdzą odpowiedzi, organizator wybiera „Wystartuj poszukiwania”. Każdy etap rozpoczyna organizator.',
+      'Gdy wszyscy zatwierdzą odpowiedzi lub zakończą stawianie kuponów, organizator wybiera „Wystartuj poszukiwania”. Każdy etap rozpoczyna organizator.',
       'Dopiero wtedy pojawiają się Zbiory. Wyniki pozostają ukryte do zakończenia grzybobrania.',
     ],
   },
@@ -40,14 +51,16 @@ const chapters = [
     title: 'Zobacz wyniki wyprawy',
     paragraphs: [
       'Po rozpatrzeniu wszystkich zgłoszeń organizator kończy wyprawę. Wtedy u wszystkich otwiera się zakładka Wyniki.',
-      'Porównacie liczbę zebranych grzybów i punkty za typowanie. Remisy oznaczają wspólne miejsce. Po zakończeniu nie można już dodawać zbiorów ani zmieniać decyzji.',
+      'Porównacie liczbę zebranych grzybów oraz punkty za typowanie lub stan grzybków w trybie Kupony. Remisy oznaczają wspólne miejsce. Po zakończeniu nie można już dodawać zbiorów ani zmieniać decyzji.',
     ],
   },
   {
     title: 'Jak liczymy punkty?',
     paragraphs: [
-      '• Zwycięzca zbiorów: 100 pkt.\n• Własny zbiór: dokładny typ — 100 pkt, pomyłka do 3 sztuk — 70 pkt, do 5 sztuk — 40 pkt.\n• Dokładny zbiór całej ekipy: 100 pkt.\n• Najczęstszy gatunek: 50 pkt.',
-      'Łącznie możesz zdobyć 350 pkt. Przy remisie zaliczamy każdego zwycięzcę i każdy najczęstszy gatunek. Jeśli nikt nic nie zbierze, nie przyznajemy punktów za zwycięzcę ani gatunek.',
+      `Punkty za typowanie własnych zbiorów i wyniku ekipy w nowych wyprawach: ${numericScoringCopy}`,
+      numericToleranceCopy,
+      boostScoringCopy,
+      'Zwycięzca zbiorów: 100 pkt. Najczęstszy gatunek: 50 pkt. Z pewniakiem możesz zdobyć do 450 pkt. Przy remisie zaliczamy każdego zwycięzcę i każdy najczęstszy gatunek. Przy zerowych zbiorach punktują tylko typy liczbowe. Zasady starszych wypraw znajdziesz w ich wynikach.',
     ],
   },
 ];

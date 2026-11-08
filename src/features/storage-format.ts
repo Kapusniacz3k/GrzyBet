@@ -1,5 +1,6 @@
-import type { Harvest, Room, Ticket } from './domain';
+import { questionKeys, type Harvest, type QuestionKey, type Room, type Ticket } from './domain.ts';
 import { species as speciesNames } from './mushroom-species.ts';
+import { placeCoupon, type Coupon } from './coupons.ts';
 
 const species = new Set(speciesNames);
 const phases = new Set(['lobby', 'predicting', 'collecting', 'finished']);
@@ -47,14 +48,16 @@ function knownSpecies(value: unknown, path: string): string {
   return result;
 }
 
-function ticket(value: unknown, members: string[], path: string): Ticket {
+function ticket(value: unknown, members: string[], path: string, scoringVersion?: 2): Ticket {
   const data = record(value, path);
   const winner = text(data.winner, `${path}.winner`);
   if (!members.includes(winner)) invalid(`${path}.winner`);
   const own = integer(data.own, `${path}.own`);
   const total = integer(data.total, `${path}.total`);
   if (total < own) invalid(`${path}.total`);
-  return { winner, own, total, species: knownSpecies(data.species, `${path}.species`) };
+  if (data.boost !== undefined && (scoringVersion !== 2 || !questionKeys.includes(data.boost as QuestionKey))) invalid(`${path}.boost`);
+  return { winner, own, total, species: knownSpecies(data.species, `${path}.species`),
+    ...(data.boost === undefined ? {} : { boost: data.boost as QuestionKey }) };
 }
 
 function draft(value: unknown, members: string[], path: string): Partial<Ticket> {
@@ -115,11 +118,13 @@ function room(value: unknown, index: number, legacy: boolean): Room {
   if (closed !== (phase !== 'lobby')) invalid(`${path}.closed`);
   const joined = boolean(data.joined, `${path}.joined`);
   if (joined !== members.includes('Kuba')) invalid(`${path}.joined`);
+  if (data.scoringVersion !== undefined && data.scoringVersion !== 2) invalid(`${path}.scoringVersion`);
+  const scoringVersion = data.scoringVersion as 2 | undefined;
   let tickets = Object.fromEntries(Object.entries(record(data.tickets, `${path}.tickets`)).map(([member, value]) => {
     if (!members.includes(member)) invalid(`${path}.tickets.${member}`);
-    return [member, ticket(value, members, `${path}.tickets.${member}`)];
+    return [member, ticket(value, members, `${path}.tickets.${member}`, scoringVersion)];
   }));
-  let currentTicket = data.ticket === undefined ? undefined : ticket(data.ticket, members, `${path}.ticket`);
+  let currentTicket = data.ticket === undefined ? undefined : ticket(data.ticket, members, `${path}.ticket`, scoringVersion);
   if (JSON.stringify(currentTicket) !== JSON.stringify(tickets.Kuba)) invalid(`${path}.ticket`);
   const answers: Record<string, Partial<Ticket>> = legacy ? {} : Object.fromEntries(
     Object.entries(record(data.answers, `${path}.answers`)).map(([member, value]) => {
@@ -143,14 +148,41 @@ function room(value: unknown, index: number, legacy: boolean): Room {
   if ((phase === 'finished') !== (finishedAt !== undefined)) invalid(`${path}.finishedAt`);
   if (phase === 'finished' && harvests.some(item => item.status === 'pending')) invalid(`${path}.harvests`);
   if ((phase === 'lobby' || phase === 'predicting') && harvests.length) invalid(`${path}.harvests`);
-  return {
+  const result: Room = {
     id: text(data.id, `${path}.id`), name: text(data.name, `${path}.name`, 60),
     code: text(data.code, `${path}.code`, 64), date: date(data.date, `${path}.date`),
     limit, members, host, joined, closed, phase: phase as Room['phase'], tickets, answers, harvests,
+    ...(scoringVersion === undefined ? {} : { scoringVersion }),
     ...(currentTicket === undefined ? {} : { ticket: currentTicket }),
     ...(finishedAt === undefined ? {} : { finishedAt }),
     ...(predictionStartedAt === undefined ? {} : { predictionStartedAt }),
   };
+  if (data.gameMode !== undefined && data.gameMode !== 'classic' && data.gameMode !== 'coupons') invalid(`${path}.gameMode`);
+  if (data.gameMode !== undefined) result.gameMode = data.gameMode;
+  if (data.gameMode === 'coupons') {
+    if (data.couponVersion !== 1 || Object.keys(tickets).length || Object.values(answers).some(draft => Object.keys(draft).length)) invalid(`${path}.couponVersion`);
+    if (!Array.isArray(data.readyIds) || data.readyIds.some(id => typeof id !== 'string' || !members.includes(id)) || new Set(data.readyIds).size !== data.readyIds.length) invalid(`${path}.readyIds`);
+    result.couponVersion = 1;
+    result.readyIds = data.readyIds as string[];
+    result.couponBook = {};
+    for (const [member, value] of Object.entries(record(data.couponBook, `${path}.couponBook`))) {
+      if (!members.includes(member) || phase === 'lobby') invalid(`${path}.couponBook.${member}`);
+      const wallet = record(value, `${path}.couponBook.${member}`);
+      if (Object.keys(wallet).some(key => !['spent', 'slips'].includes(key)) || !Array.isArray(wallet.slips)) invalid(`${path}.couponBook.${member}`);
+      let replay: Room = { ...result, phase: 'predicting', readyIds: [], couponBook: {} };
+      for (const [index, slip] of wallet.slips.entries()) {
+        try { replay = placeCoupon(replay, slip as Coupon, member); }
+        catch { invalid(`${path}.couponBook.${member}.slips[${index}]`); }
+        if (replay.couponBook![member].slips.length !== index + 1) invalid(`${path}.couponBook.${member}.slips`);
+      }
+      const restored = replay.couponBook?.[member] ?? { spent: 0, slips: [] };
+      if (integer(wallet.spent, `${path}.spent`, 0, 10) !== restored.spent) invalid(`${path}.spent`);
+      result.couponBook[member] = restored;
+    }
+    if (phase === 'lobby' && result.readyIds.length) invalid(`${path}.readyIds`);
+    if (['collecting', 'finished'].includes(phase) && members.some(id => !result.readyIds!.includes(id))) invalid(`${path}.readyIds`);
+  } else if (data.couponVersion !== undefined || data.couponBook !== undefined) invalid(`${path}.couponBook`);
+  return result;
 }
 
 function validateState(value: unknown): Room[] {

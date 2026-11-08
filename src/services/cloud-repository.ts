@@ -6,13 +6,17 @@ import { deleteObject, getBytes, getMetadata, ref, uploadBytesResumable, type Fi
 import type { UploadPhoto } from './photo-upload';
 import {
   answerQuestion, restartAnswers, saveTicket, submitHarvest, transitionRoom,
-  type Harvest, type Phase, type QuestionKey, type Room, type Ticket,
+  type Harvest, type Phase, type QuestionKey, type Room, type RoomCreation, type Ticket,
 } from '../features/domain';
+import { placeCoupon, finishCoupons, type CouponPicks, type CouponWallet } from '../features/coupons';
 
 export type CloudRoom = {
   name: string; code: string; startsAt: Timestamp; limit: number; host: string;
   memberIds: string[]; readyIds: string[]; phase: Phase; pendingCount: number; lastHarvestId: string;
   createdAt: Timestamp; finishedAt: Timestamp | null; predictionStartedAt?: Timestamp | null;
+  scoringVersion?: 2;
+  gameMode?: Room['gameMode'];
+  couponVersion?: 1;
 };
 export type CloudHarvest = Omit<Harvest, 'id' | 'photoUri' | 'createdAt'> & { photoPath: string; createdAt: Timestamp };
 export function asRoom(id: string, data: CloudRoom, uid: string): Room {
@@ -21,6 +25,9 @@ export function asRoom(id: string, data: CloudRoom, uid: string): Room {
     limit: data.limit, host: data.host, members: data.memberIds, joined: data.memberIds.includes(uid),
     phase: data.phase, closed: data.phase !== 'lobby', tickets: {}, answers: {}, harvests: [],
     readyIds: data.readyIds, names: {}, progress: {},
+    ...(data.scoringVersion === 2 ? { scoringVersion: 2 } : {}),
+    ...(data.gameMode ? { gameMode: data.gameMode } : {}),
+    ...(data.gameMode === 'coupons' ? { couponVersion: data.couponVersion, couponBook: {} } : {}),
     ...(data.finishedAt ? { finishedAt: data.finishedAt.toDate().toISOString() } : {}),
     ...(data.predictionStartedAt ? { predictionStartedAt: data.predictionStartedAt.toDate().toISOString() } : {}),
   };
@@ -32,11 +39,13 @@ export class CloudRepository {
   memberRef(id: string) { return doc(this.db, 'rooms', id, 'members', this.uid); }
   answersRef(id: string) { return doc(this.db, 'rooms', id, 'answers', this.uid); }
   ticketRef(id: string) { return doc(this.db, 'rooms', id, 'tickets', this.uid); }
+  couponsRef(id: string) { return doc(this.db, 'rooms', id, 'coupons', this.uid); }
 
-  async create(data: Pick<Room, 'name' | 'limit'>): Promise<string> {
+  async create(data: RoomCreation): Promise<string> {
     if (data.name.trim().length < 3 || data.name.trim().length > 60 || !Number.isInteger(data.limit) || data.limit < 2 || data.limit > 30) {
       throw new Error('Sprawdź nazwę i limit uczestników.');
     }
+    if (data.gameMode !== undefined && !['classic', 'coupons'].includes(data.gameMode)) throw new Error('Wybierz tryb wyprawy.');
     for (let attempt = 0; attempt < 5; attempt++) {
       const roomRef = doc(collection(this.db, 'rooms'));
       const code = roomRef.id.slice(0, 6).toUpperCase();
@@ -46,7 +55,8 @@ export class CloudRepository {
         tx.set(roomRef, {
           name: data.name.trim(), code, startsAt: serverTimestamp(), limit: data.limit,
           host: this.uid, memberIds: [this.uid], readyIds: [], phase: 'lobby', pendingCount: 0,
-          lastHarvestId: '', createdAt: serverTimestamp(), finishedAt: null, predictionStartedAt: null,
+          lastHarvestId: '', createdAt: serverTimestamp(), finishedAt: null, predictionStartedAt: null, scoringVersion: 2,
+          ...(data.gameMode === 'coupons' ? { gameMode: 'coupons', couponVersion: 1 } : {}),
         });
         tx.set(codeRef, { roomId: roomRef.id });
         tx.set(doc(roomRef, 'members', this.uid), { name: this.name, progress: 0, joinedAt: serverTimestamp() });
@@ -115,6 +125,27 @@ export class CloudRepository {
     });
   }
 
+  async placeCoupon(id: string, picks: CouponPicks, stake: number) {
+    const couponId = doc(collection(this.db, 'rooms')).id;
+    await runTransaction(this.db, async tx => {
+      const [snapshot, ledger] = await Promise.all([tx.get(this.roomRef(id)), tx.get(this.couponsRef(id))]);
+      if (!snapshot.exists()) throw new Error('Nie znaleziono pokoju.');
+      const model = asRoom(id, snapshot.data() as CloudRoom, this.uid);
+      model.couponBook = ledger.exists() ? { [this.uid]: ledger.data() as CouponWallet } : {};
+      const updated = placeCoupon(model, { id: couponId, picks, stake }, this.uid);
+      tx.set(this.couponsRef(id), updated.couponBook![this.uid]);
+    });
+  }
+
+  async finishCoupons(id: string) {
+    await runTransaction(this.db, async tx => {
+      const snapshot = await tx.get(this.roomRef(id));
+      if (!snapshot.exists()) throw new Error('Nie znaleziono pokoju.');
+      const updated = finishCoupons(asRoom(id, snapshot.data() as CloudRoom, this.uid), this.uid);
+      tx.update(this.roomRef(id), { readyIds: updated.readyIds });
+    });
+  }
+
   async transition(id: string, action: 'begin' | 'start' | 'finish') {
     await runTransaction(this.db, async tx => {
       const room = await tx.get(this.roomRef(id));
@@ -171,6 +202,11 @@ export class CloudRepository {
     let answers: Partial<Ticket> = {};
     let tickets: Record<string, Ticket> = {};
     let harvests: Harvest[] = [];
+    let couponBook: Record<string, CouponWallet> = {};
+    let ownCouponsReady = false;
+    let allCouponsReady = false;
+    let ownCoupons: Unsubscribe | undefined;
+    let allCoupons: Unsubscribe | undefined;
     let ownAnswersReady = false;
     let ownTicketReady = false;
     let membersReady = false;
@@ -178,17 +214,31 @@ export class CloudRepository {
     function emit() {
       if (!publicRoom || !ownAnswersReady || !ownTicketReady || !membersReady) return;
       if (!publicRoom.memberIds.every(member => !!names[member])) return;
-      if (publicRoom.readyIds.includes(self.uid) && !tickets[self.uid]) return;
-      if (!tickets[self.uid] && (progress[self.uid] ?? 0) > Object.keys(answers).length) return;
+      const coupons = publicRoom.gameMode === 'coupons';
+      if (coupons && (!ownCouponsReady || (publicRoom.phase === 'finished' && !allCouponsReady))) return;
+      if (!coupons && publicRoom.readyIds.includes(self.uid) && !tickets[self.uid]) return;
+      if (!coupons && !tickets[self.uid] && (progress[self.uid] ?? 0) > Object.keys(answers).length) return;
       next({ ...asRoom(id, publicRoom, self.uid), names, progress, answers: { [self.uid]: answers }, tickets,
-        ...(tickets[self.uid] ? { ticket: tickets[self.uid] } : {}), harvests });
+        ...(tickets[self.uid] ? { ticket: tickets[self.uid] } : {}), ...(coupons ? { couponBook } : {}), harvests });
     }
     const self = this;
     const stops = [
       onSnapshot(this.roomRef(id), snapshot => {
         if (!snapshot.exists()) return;
         publicRoom = snapshot.data() as CloudRoom;
-        if (['collecting', 'finished'].includes(publicRoom.phase) && !allTickets) {
+        if (publicRoom.gameMode === 'coupons' && !ownCoupons) {
+          ownCoupons = onSnapshot(this.couponsRef(id), data => {
+            if (data.exists()) couponBook = { ...couponBook, [self.uid]: data.data() as CouponWallet };
+            ownCouponsReady = true; emit();
+          }, error);
+        }
+        if (publicRoom.gameMode === 'coupons' && publicRoom.phase === 'finished' && !allCoupons) {
+          allCoupons = onSnapshot(collection(this.roomRef(id), 'coupons'), data => {
+            couponBook = Object.fromEntries(data.docs.map(item => [item.id, item.data() as CouponWallet]));
+            allCouponsReady = true; emit();
+          }, error);
+        }
+        if (publicRoom.gameMode !== 'coupons' && ['collecting', 'finished'].includes(publicRoom.phase) && !allTickets) {
           allTickets = onSnapshot(collection(this.roomRef(id), 'tickets'), data => {
             tickets = Object.fromEntries(data.docs.map(item => [item.id, item.data().values]));
             emit();
@@ -215,7 +265,7 @@ export class CloudRepository {
         emit();
       }, error),
     ];
-    return () => { stops.forEach(stop => stop()); allTickets?.(); };
+    return () => { stops.forEach(stop => stop()); allTickets?.(); ownCoupons?.(); allCoupons?.(); };
   }
 }
 

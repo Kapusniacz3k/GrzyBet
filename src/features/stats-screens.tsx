@@ -12,15 +12,21 @@ import { DeleteAccountAction } from './delete-account-modal';
 import { Button, Page } from './ui';
 import { useAccount } from './account-context';
 import { speciesLabel } from './mushroom-species';
+import { calculateCouponResults, couponWallet, formatGrzybki } from './coupons';
 
 function seasonStats(rooms: Room[]) {
   const stats = new Map<string, { name: string; points: number; wins: number; mushrooms: number }>();
   for (const room of rooms.filter(r => r.joined && r.phase === 'finished')) {
+    const couponResults = new Map(calculateCouponResults(room).map(row => [row.member, row]));
     for (const result of calculateResults(room)) {
       const row = stats.get(result.member) ?? { name: result.member, points: 0, wins: 0, mushrooms: 0 };
-      row.points += result.points;
+      if (room.gameMode !== 'coupons') row.points += result.points;
       row.mushrooms += result.mushrooms;
       if (result.place === 1 && result.points > 0) row.wins++;
+      if (room.gameMode === 'coupons') {
+        const couponResult = couponResults.get(result.member);
+        if (couponResult?.place === 1 && couponResult.netCents > 0) row.wins++;
+      }
       stats.set(result.member, row);
     }
   }
@@ -36,7 +42,8 @@ export function ProfileScreen() {
   const history = mine.filter(r => r.phase === 'finished').sort((a, b) => Date.parse(b.finishedAt!) - Date.parse(a.finishedAt!));
   const stats = seasonStats(rooms).find(r => r.name === userId);
   const best = Math.max(0, ...history.flatMap(r => calculateResults(r).filter(row => row.member === userId).map(row => row.mushrooms)));
-  const activeTickets = mine.filter(room => room.ticket && room.phase !== 'finished');
+  const ticketCount = (room: Room) => room.gameMode === 'coupons' ? couponWallet(room, userId).slips.length : room.ticket ? 1 : 0;
+  const activeTickets = mine.filter(room => ticketCount(room) > 0 && room.phase !== 'finished');
   function open(id: string) { router.push({ pathname: '/room/[id]', params: { id } }); }
   return <Page contentStyle={styles.page}>
     <View style={styles.pageHeader}>
@@ -72,9 +79,9 @@ export function ProfileScreen() {
       <Text style={styles.statsHint}>Z zakończonych wypraw</Text>
       <View style={styles.metrics}>
         <ProfileMetric value={history.length} label="Wyprawy" description="Zakończone wyprawy" />
-        <ProfileMetric divider value={stats?.wins ?? 0} label="Wygrane" description="Wygrane typowania" />
+        <ProfileMetric divider value={stats?.wins ?? 0} label="Wygrane" description="Wygrane wyprawy z dodatnim wynikiem" />
         <ProfileMetric divider value={best} label="Rekord" description="Grzyby na najlepszej wyprawie" />
-        <ProfileMetric divider value={mine.filter(room => room.ticket).length} label="Kupony" description="Zapisane kupony" />
+        <ProfileMetric divider value={mine.reduce((sum, room) => sum + ticketCount(room), 0)} label="Kupony" description="Zapisane kupony" />
       </View>
       </View>
     </View>
@@ -94,15 +101,16 @@ export function ProfileScreen() {
         {!history.length && <Text style={styles.copy}>Po zakończeniu pierwszej wyprawy pojawi się tutaj jej podsumowanie.</Text>}
         {history.map(room => {
           const result = calculateResults(room).find(r => r.member === userId);
+          const couponResult = room.gameMode === 'coupons' ? calculateCouponResults(room).find(row => row.member === userId) : undefined;
           if (!result) return null;
           return <Pressable key={room.id} accessibilityRole="button" accessibilityLabel={`Podsumowanie wyprawy ${room.name}`}
             onPress={() => open(room.id)} style={({ pressed }) => [styles.historyItem, pressed && styles.pressed]}>
             <View style={styles.tripHeading}>
               <View style={styles.tripText}><Text style={styles.tripName}>{room.name}</Text><Text style={styles.smallCopy}>{roomDateLabel(room.date)}{room.predictionStartedAt ? ` · start ${predictionStartLabel(room.date, room.predictionStartedAt)}` : ''}</Text></View>
-              <Text style={styles.place}>{result.place}. miejsce</Text>
+              <Text style={styles.place}>{couponResult?.place ?? result.place}. miejsce</Text>
             </View>
             <View style={styles.tripFooter}>
-              <Text style={styles.tripResult}>{result.points} pkt · {result.mushrooms} grzybów</Text>
+              <Text style={styles.tripResult}>{couponResult ? `${formatGrzybki(couponResult.balanceCents)} grzybków · Kupony` : `${result.points} pkt`} · {result.mushrooms} grzybów</Text>
               <ArrowIcon size={19} direction="up-right" color={colors.textMuted} />
             </View>
           </Pressable>;
@@ -110,10 +118,12 @@ export function ProfileScreen() {
       </Animated.View>}
     </Animated.View>
     <View style={styles.tickets}>
-      <View style={styles.sectionHeading}><Text accessibilityRole="header" style={styles.sectionTitle}>Aktywne kupony</Text><Text style={styles.smallCopy}>{activeTickets.length}</Text></View>
+      <View style={styles.sectionHeading}><Text accessibilityRole="header" style={styles.sectionTitle}>Aktywne kupony</Text><Text style={styles.smallCopy}>{activeTickets.reduce((sum, room) => sum + ticketCount(room), 0)}</Text></View>
       {!!activeTickets.length && <View style={styles.ticketList}>{activeTickets.map(room => <Pressable key={room.id} accessibilityRole="button" accessibilityLabel={`Otwórz pokój ${room.name}`}
         onPress={() => open(room.id)} style={({ pressed }) => [styles.ticket, pressed && styles.pressed]}>
-        <View style={styles.tripText}><Text style={styles.tripName}>{room.name}</Text><Text style={styles.smallCopy}>{room.ticket ? memberName(room, room.ticket.winner) : ''} · {room.ticket ? speciesLabel(room.ticket.species) : ''}</Text></View>
+        <View style={styles.tripText}><Text style={styles.tripName}>{room.name}</Text><Text style={styles.smallCopy}>{room.gameMode === 'coupons'
+          ? `${ticketCount(room)} kuponów · ${10 - couponWallet(room, userId).spent} grzybków do wykorzystania`
+          : `${room.ticket ? memberName(room, room.ticket.winner) : ''} · ${room.ticket ? speciesLabel(room.ticket.species) : ''}`}</Text></View>
         <ArrowIcon size={19} direction="up-right" color={colors.textMuted} />
       </Pressable>)}</View>}
       {!activeTickets.length && <Text style={styles.copy}>Nie masz teraz aktywnych kuponów.</Text>}

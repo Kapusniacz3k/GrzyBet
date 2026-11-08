@@ -4,10 +4,11 @@ import assert from 'node:assert/strict';
 import test, { after } from 'node:test';
 const { initializeApp, deleteApp } = require('firebase/app');
 const { initializeAuth, inMemoryPersistence, connectAuthEmulator, signInAnonymously } = require('firebase/auth');
-const { connectFirestoreEmulator, getFirestore, getDoc, getDocs, doc, collection, query, where, updateDoc, setDoc, runTransaction, serverTimestamp, Timestamp, terminate, setLogLevel } = require('firebase/firestore');
+const { connectFirestoreEmulator, getFirestore, getDoc, getDocs, deleteDoc, doc, collection, query, where, updateDoc, setDoc, runTransaction, serverTimestamp, Timestamp, terminate, setLogLevel } = require('firebase/firestore');
 const { connectStorageEmulator, getStorage, getBytes, ref, uploadBytes, deleteObject } = require('firebase/storage');
 const { CloudRepository, asRoom, roomCode, uploadHarvestPhoto, submitHarvestWithPhoto, readHarvestPhoto } = require('../../src/services/cloud-repository.ts');
 const { calculateResults } = require('../../src/features/domain.ts');
+const { calculateCouponResults } = require('../../src/features/coupons.ts');
 const { species } = require('../../src/features/mushroom-species.ts');
 
 setLogLevel('silent');
@@ -51,6 +52,132 @@ async function denied(promise) {
   await assert.rejects(promise, error => ['permission-denied','storage/unauthorized'].includes(error.code), 'security rules must reject this write/read');
 }
 const png = new Uint8Array(Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a4XkAAAAASUVORK5CYII=', 'base64'));
+
+test('virtual coupons share readiness and immutable budgets, stay private until the end, and settle identically on two clients', { timeout: 60000 }, async () => {
+  const host = await client('Kupony host');
+  const guest = await client('Kupony gracz');
+  const outsider = await client('Poza wyprawą');
+  const id = await host.repo.create({ name: 'Wyprawa z kuponami', limit: 2, gameMode: 'coupons' });
+  const roomRef = doc(host.db, 'rooms', id);
+  const ownLedger = doc(host.db, 'rooms', id, 'coupons', host.user.uid);
+  const first = { id: 'first001', stake: 2, picks: { winner: host.user.uid, own: 'over10', total: 'under20', species: 'Borowik' } };
+  assert.equal((await getDoc(roomRef)).data().couponVersion, 1);
+  await denied(updateDoc(roomRef, { gameMode: 'classic' }));
+  await denied(updateDoc(roomRef, { couponVersion: 2 }));
+  await denied(setDoc(ownLedger, { spent: 2, slips: [first] }));
+  await guest.repo.join(await roomCode(host.db, id));
+  await host.repo.transition(id, 'begin');
+  await host.repo.placeCoupon(id, first.picks, 2);
+  await host.repo.placeCoupon(id, { total: 'over20' }, 3);
+  await guest.repo.placeCoupon(id, { own: 'under10' }, 2);
+  const ledger = (await getDoc(ownLedger)).data();
+  assert.equal(ledger.spent, 5);
+  assert.equal(ledger.slips.length, 2);
+  await denied(getDoc(doc(guest.db, 'rooms', id, 'coupons', host.user.uid)));
+  await denied(getDocs(collection(guest.db, 'rooms', id, 'coupons')));
+  await denied(getDoc(doc(outsider.db, 'rooms', id, 'coupons', host.user.uid)));
+  await denied(setDoc(doc(guest.db, 'rooms', id, 'coupons', host.user.uid), { spent: 2, slips: [first] }));
+  await denied(updateDoc(ownLedger, { spent: 0 }));
+  await denied(setDoc(ownLedger, { spent: 0, slips: [] }));
+  const forged = { id: 'forged01', stake: 1, picks: { own: 'over5' }, odds: 99999 };
+  await denied(setDoc(ownLedger, { spent: 6, slips: [...ledger.slips, forged] }));
+  await denied(setDoc(ownLedger, { spent: 6, slips: [...ledger.slips, { id: 'forged02', stake: 1, picks: { total: 'over1' } }] }));
+  await denied(setDoc(ownLedger, { spent: 11, slips: [...ledger.slips, { id: 'tooMuch1', stake: 6, picks: { own: 'over5' } }] }));
+  await assert.rejects(host.repo.answer(id, 'winner', host.user.uid), /zamiast/);
+  const readySnapshot = observe(host.repo, id, room => room.readyIds.includes(host.user.uid));
+  await host.repo.finishCoupons(id);
+  assert.equal((await readySnapshot).couponBook[host.user.uid].spent, 5);
+  await denied(setDoc(ownLedger, { spent: 6, slips: [...ledger.slips, { id: 'late0001', stake: 1, picks: { own: 'over5' } }] }));
+  await assert.rejects(host.repo.transition(id, 'start'), /wszyscy/);
+  await guest.repo.finishCoupons(id);
+  await host.repo.transition(id, 'start');
+  const collecting = await observe(guest.repo, id, room => room.phase === 'collecting');
+  assert.deepEqual(calculateCouponResults(collecting), []);
+  await uploadHarvestPhoto(host.storage, id, host.user.uid, 'coupon-harvest', png, 'image/png');
+  await host.repo.submit(id, 'coupon-harvest', { species: 'Borowik', count: 12, note: '', photoUri: 'file:///test.png' });
+  await uploadHarvestPhoto(guest.storage, id, guest.user.uid, 'coupon-guest', png, 'image/png');
+  await guest.repo.submit(id, 'coupon-guest', { species: 'Kurka', count: 8, note: '', photoUri: 'file:///test.png' });
+  await assert.rejects(host.repo.transition(id, 'finish'), /rozpatrz/);
+  await host.repo.review(id, 'coupon-harvest', 'approved');
+  await host.repo.review(id, 'coupon-guest', 'approved');
+  const readyResult = room => room.phase === 'finished' && Object.keys(room.couponBook ?? {}).length === 2 && room.harvests.length === 2 && room.harvests.every(h => h.status === 'approved');
+  const hostFinal = observe(host.repo, id, readyResult);
+  const guestFinal = observe(guest.repo, id, readyResult);
+  await host.repo.transition(id, 'finish');
+  const hostResults = calculateCouponResults(await hostFinal);
+  const guestResults = calculateCouponResults(await guestFinal);
+  assert.deepEqual(hostResults, guestResults);
+  assert.equal(hostResults.find(row => row.member === host.user.uid).balanceCents, 12470);
+  assert.equal(hostResults.find(row => row.member === guest.user.uid).balanceCents, 1160);
+  assert.equal((await getDocs(collection(guest.db, 'rooms', id, 'coupons'))).size, 2);
+  await denied(deleteDoc(ownLedger));
+});
+
+test('concurrent coupons cannot overspend the same ten grzybki or bypass the mode and readiness rules', { timeout: 30000 }, async () => {
+  const host = await client('Saldo');
+  const id = await host.repo.create({ name: 'Równoległe kupony', limit: 2, gameMode: 'coupons' });
+  await host.repo.transition(id, 'begin');
+  const attempts = await Promise.allSettled([
+    host.repo.placeCoupon(id, { own: 'over5' }, 6), host.repo.placeCoupon(id, { total: 'over20' }, 6),
+  ]);
+  assert.equal(attempts.filter(item => item.status === 'fulfilled').length, 1);
+  assert.equal(attempts.filter(item => item.status === 'rejected').length, 1);
+  const ledger = (await getDoc(doc(host.db, 'rooms', id, 'coupons', host.user.uid))).data();
+  assert.equal(ledger.spent, 6);
+  assert.equal(ledger.slips.length, 1);
+  await host.repo.finishCoupons(id);
+  await host.repo.transition(id, 'start');
+  await assert.rejects(host.repo.placeCoupon(id, { own: 'over5' }, 1));
+  const classic = await host.repo.create({ name: 'Zwykłe typowanie', limit: 2 });
+  await host.repo.transition(classic, 'begin');
+  await denied(updateDoc(doc(host.db, 'rooms', classic), { readyIds: [host.user.uid] }));
+  await denied(setDoc(doc(host.db, 'rooms', classic, 'coupons', host.user.uid), { spent: 6, slips: ledger.slips }));
+  const next = await host.repo.create({ name: 'Nowa pula grzybków', limit: 2, gameMode: 'coupons' });
+  await host.repo.transition(next, 'begin');
+  await host.repo.placeCoupon(next, { own: 'over5' }, 10);
+  assert.equal((await getDoc(doc(host.db, 'rooms', next, 'coupons', host.user.uid))).data().spent, 10);
+});
+
+test('boosts cannot change answers, stack multipliers or be edited after confirmation, and partial scores synchronize', { timeout: 60000 }, async () => {
+  const host = await client('Pewniak');
+  const guest = await client('Gracz');
+  const id = await host.repo.create({ name: 'Pewniak i punkty', limit: 2 });
+  assert.equal((await getDoc(doc(host.db, 'rooms', id))).data().scoringVersion, 2);
+  await denied(updateDoc(doc(host.db, 'rooms', id), { scoringVersion: 1 }));
+  await guest.repo.join(await roomCode(host.db, id));
+  await host.repo.transition(id, 'begin');
+  const values = { winner: host.user.uid, own: 12, total: 17, species: 'Borowik' };
+  await fill(host, id, values);
+  async function rawConfirm(ticket) {
+    return runTransaction(host.db, async tx => {
+      const snapshot = await tx.get(doc(host.db, 'rooms', id));
+      tx.set(doc(host.db, 'rooms', id, 'tickets', host.user.uid), { values: ticket });
+      tx.update(doc(host.db, 'rooms', id), { readyIds: [...snapshot.data().readyIds, host.user.uid] });
+      tx.delete(doc(host.db, 'rooms', id, 'answers', host.user.uid));
+    });
+  }
+  await denied(rawConfirm({ ...values, own: 10, boost: 'total' }));
+  await denied(rawConfirm({ ...values, boost: ['own', 'total'] }));
+  await denied(rawConfirm({ ...values, boost: 'unknown' }));
+  await denied(rawConfirm({ ...values, boost: 'total', multiplier: 9 }));
+  await host.repo.confirm(id, { ...values, boost: 'total' });
+  await denied(updateDoc(doc(host.db, 'rooms', id, 'tickets', host.user.uid), { 'values.boost': 'own' }));
+  const guestValues = { ...values, own: 0, total: 12 };
+  await fill(guest, id, guestValues);
+  await guest.repo.confirm(id, { ...guestValues, boost: 'own' });
+  await host.repo.transition(id, 'start');
+  await uploadHarvestPhoto(host.storage, id, host.user.uid, 'boost-harvest', png, 'image/png');
+  await host.repo.submit(id, 'boost-harvest', { species: 'Borowik', count: 12, note: '', photoUri: 'file:///test.png' });
+  await host.repo.review(id, 'boost-harvest', 'approved');
+  const complete = observe(guest.repo, id, room => room.phase === 'finished' && room.harvests.length === 1 && Object.keys(room.tickets).length === 2);
+  await host.repo.transition(id, 'finish');
+  const result = calculateResults(await complete);
+  assert.equal(result.find(row => row.member === guest.user.uid).points, 450);
+  const hostRow = result.find(row => row.member === host.user.uid);
+  assert.equal(hostRow.points, 290);
+  assert.equal(hostRow.predictions.find(item => item.key === 'total').difference, 5);
+  assert.equal(hostRow.predictions.find(item => item.key === 'total').points, 40);
+});
 
 test('room creation date and prediction start use immutable server timestamps shared by participants', { timeout: 30000 }, async () => {
   const host = await client('Organizator czasu');

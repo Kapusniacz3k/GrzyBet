@@ -6,8 +6,9 @@ import { ConnectionScreen } from '@/components/connection-screen';
 import { useAppTheme } from '@/hooks/use-app-theme';
 import {
   joinRoom, saveTicket, answerQuestion, restartAnswers, submitHarvest, reviewHarvest, transitionRoom,
-  type Room,
+  type Room, type RoomCreation,
 } from './domain';
+import { placeCoupon, finishCoupons } from './coupons';
 import { decodeRooms, encodeRooms } from './storage-format';
 import { Button, Copy, Message } from './ui';
 import { GameContext, type Game } from './game-context';
@@ -23,10 +24,10 @@ const STORAGE_KEY = 'grzybet:rooms:v1';
 function seedRooms(): Room[] {
   const date = new Date();
   return [
-    { id: 'gorce', name: 'Grzybobranie w Gorcach', code: 'GRZ482', date: date.toISOString(), limit: 8,
+    { id: 'gorce', name: 'Grzybobranie w Gorcach', code: 'GRZ482', date: date.toISOString(), scoringVersion: 2, limit: 8,
       members: ['Kuba', 'Kacper', 'Mateusz', 'Bartek'], host: 'Kuba', joined: true, closed: false,
       phase: 'lobby', tickets: {}, answers: {}, harvests: [] },
-    { id: 'beskidy', name: 'Sobotni wypad w Beskidy', code: 'LAS219', date: date.toISOString(), limit: 6,
+    { id: 'beskidy', name: 'Sobotni wypad w Beskidy', code: 'LAS219', date: date.toISOString(), scoringVersion: 2, limit: 6,
       members: ['Kacper', 'Bartek'], host: 'Kacper', joined: false, closed: false,
       phase: 'lobby', tickets: {}, answers: {}, harvests: [] },
   ];
@@ -96,17 +97,19 @@ function LocalGameProvider({ children }: { children: ReactNode }) {
     const updated = update(room);
     commit(current.current.map(r => r.id === id ? updated : r));
   }
-  async function create(data: Pick<Room, 'name' | 'limit'>) {
+  async function create(data: RoomCreation) {
     if (data.name.trim().length < 3 || data.name.trim().length > 60 ||
         !Number.isInteger(data.limit) || data.limit < 2 || data.limit > 30) {
       throw new Error('Sprawdź nazwę oraz limit 2–30 uczestników.');
     }
+    if (data.gameMode !== undefined && !['classic', 'coupons'].includes(data.gameMode)) throw new Error('Wybierz tryb wyprawy.');
     let code: string;
     do { code = Math.random().toString(36).slice(2, 8).toUpperCase().padEnd(6, 'X'); }
     while (current.current.some(r => r.code === code));
     const id = Date.now().toString(36) + '-' + code;
-    commit([...current.current, { name: data.name.trim(), limit: data.limit, date: new Date().toISOString(), id, code, members: [CURRENT_USER],
-      host: CURRENT_USER, joined: true, closed: false, phase: 'lobby', tickets: {}, answers: {}, harvests: [] }]);
+    commit([...current.current, { name: data.name.trim(), limit: data.limit, date: new Date().toISOString(), scoringVersion: 2, id, code, members: [CURRENT_USER],
+      host: CURRENT_USER, joined: true, closed: false, phase: 'lobby', tickets: {}, answers: {}, harvests: [],
+      gameMode: data.gameMode ?? 'classic', ...(data.gameMode === 'coupons' ? { couponVersion: 1, couponBook: {}, readyIds: [] } : {}) }]);
     return id;
   }
   async function join(code: string) {
@@ -117,6 +120,10 @@ function LocalGameProvider({ children }: { children: ReactNode }) {
   }
   const game: Game = {
     rooms, create, join, userId: CURRENT_USER, displayName: CURRENT_USER, mode: 'local', busy: false,
+    placeCoupon: async (id, picks, stake) => change(id, r => placeCoupon(r, {
+      id: Date.now().toString(36) + Math.random().toString(36).slice(2, 10), picks, stake,
+    }, CURRENT_USER)),
+    finishCoupons: async id => change(id, r => finishCoupons(r, CURRENT_USER)),
     save: async (id, ticket) => change(id, r => saveTicket(r, ticket, CURRENT_USER)),
     answer: async (id, key, value) => change(id, r => answerQuestion(r, key, value, CURRENT_USER)),
     restart: async id => change(id, r => restartAnswers(r, CURRENT_USER)),
