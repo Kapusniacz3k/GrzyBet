@@ -2,6 +2,7 @@ import type { Room } from './domain';
 import { species } from './mushroom-species.ts';
 
 export const COUPON_BUDGET = 10;
+export const CURRENT_COUPON_VERSION = 2;
 export const couponMarkets = ['winner', 'own', 'total', 'species'] as const;
 export type CouponMarket = typeof couponMarkets[number];
 export type CouponPicks = Partial<Record<CouponMarket, string>>;
@@ -16,14 +17,35 @@ export const couponLines = {
   total: [{ line: 20, over: 160, under: 210 }, { line: 50, over: 200, under: 170 }, { line: 100, over: 300, under: 125 }],
 } as const;
 
+export type CouponLine = { id: string; line: number; over: number; under?: number };
+export function couponLinesFor(room: Room, market: 'own' | 'total'): CouponLine[] {
+  if (room.couponVersion === 1) return couponLines[market].map(option => ({ ...option, id: String(option.line) }));
+  if (market === 'own') return couponLines.own.map(option => ({ id: String(option.line), line: option.line, over: option.over }));
+  if (room.members.length < 2) return [];
+  return couponLines.total.map((option, index) => ({
+    id: ['-low', '-mid', '-high'][index], line: [5, 10, 20][index] * room.members.length, over: option.over, under: option.under,
+  }));
+}
+
+export function couponNumberPick(room: Room, market: 'own' | 'total', value: string) {
+  for (const option of couponLinesFor(room, market)) {
+    if (value === `over${option.id}`) return { ...option, direction: 'over' as const };
+    if (option.under !== undefined && value === `under${option.id}`) return { ...option, direction: 'under' as const };
+  }
+  throw new Error('Wybierz zakład z dostępnej oferty.');
+}
+
+export function couponMaxPicks(room: Room) { return room.couponVersion === 1 ? 4 : 3; }
+
 export function couponPickOdds(room: Room, market: CouponMarket, value: string): number {
-  if (market === 'winner' && room.members.includes(value)) return Math.max(150, room.members.length * 150);
+  if (market === 'winner' && room.members.includes(value)) {
+    if (room.couponVersion === 1) return Math.max(150, room.members.length * 150);
+    if (room.members.length >= 2) return room.members.length * 90;
+  }
   if (market === 'species' && species.includes(value)) return 500;
   if (market === 'own' || market === 'total') {
-    for (const option of couponLines[market]) {
-      if (value === `over${option.line}`) return option.over;
-      if (value === `under${option.line}`) return option.under;
-    }
+    const option = couponNumberPick(room, market, value);
+    return option.direction === 'over' ? option.over : option.under!;
   }
   throw new Error('Wybierz zakład z dostępnej oferty.');
 }
@@ -31,7 +53,10 @@ export function couponPickOdds(room: Room, market: CouponMarket, value: string):
 export function validateCouponPicks(room: Room, picks: CouponPicks): void {
   if (!picks || typeof picks !== 'object' || Array.isArray(picks)) throw new Error('Niepoprawne zakłady.');
   const keys = Object.keys(picks);
-  if (keys.length === 0 || keys.some(key => !couponMarkets.includes(key as CouponMarket))) throw new Error('Wybierz od jednego do czterech różnych zakładów.');
+  if (keys.length === 0 || keys.some(key => !couponMarkets.includes(key as CouponMarket))) throw new Error(`Wybierz od 1 do ${couponMaxPicks(room)} różnych zakładów.`);
+  if (room.couponVersion === 2 && Object.hasOwn(picks, 'own') && Object.hasOwn(picks, 'total')) {
+    throw new Error('Własny zbiór i wynik ekipy stawiaj na oddzielnych kuponach.');
+  }
   for (const market of couponMarkets) {
     if (!Object.hasOwn(picks, market)) continue;
     if (typeof picks[market] !== 'string') throw new Error('Niepoprawny typ zakładu.');
@@ -56,7 +81,7 @@ export function couponWallet(room: Room, actor: string): CouponWallet {
 
 function assertCouponOpen(room: Room, actor: string) {
   if (!room.members.includes(actor)) throw new Error('Nie należysz do tej wyprawy.');
-  if (room.gameMode !== 'coupons' || room.couponVersion !== 1) throw new Error('Ta wyprawa nie korzysta z trybu kuponów.');
+  if (room.gameMode !== 'coupons' || ![1, 2].includes(room.couponVersion ?? 0)) throw new Error('Ta wyprawa nie korzysta z obsługiwanej wersji kuponów.');
   if (room.phase !== 'predicting') throw new Error('Kupony są dostępne tylko po otwarciu zakładów i przed poszukiwaniami.');
   if (room.readyIds?.includes(actor)) throw new Error('Zakończyłeś już stawianie kuponów.');
 }
@@ -84,7 +109,7 @@ export function finishCoupons(room: Room, actor: string): Room {
 }
 
 export type CouponPickResult = { market: CouponMarket; value: string; actual: string[] | number; won: boolean };
-export type SettledCoupon = Coupon & { odds: number; payoutCents: number; won: boolean; results: CouponPickResult[] };
+export type SettledCoupon = Coupon & { odds: number; payoutCents: number; tieDivisor: number; won: boolean; results: CouponPickResult[] };
 export type CouponResultRow = { member: string; mushrooms: number; spent: number; payoutCents: number; balanceCents: number; netCents: number; won: number; place: number; slips: SettledCoupon[] };
 
 export function calculateCouponResults(room: Room): CouponResultRow[] {
@@ -110,13 +135,19 @@ export function calculateCouponResults(room: Room): CouponResultRow[] {
         const value = coupon.picks[market];
         if (value === undefined) return [];
         const actual = market === 'own' ? mushrooms : actuals[market];
-        const won = Array.isArray(actual) ? actual.includes(value)
-          : value.startsWith('over') ? actual > Number(value.slice(4)) : actual <= Number(value.slice(5));
+        let won: boolean;
+        if (Array.isArray(actual)) won = actual.includes(value);
+        else {
+          const option = couponNumberPick(room, market as 'own' | 'total', value);
+          won = option.direction === 'over' ? actual > option.line : actual <= option.line;
+        }
         return [{ market, value, actual, won }];
       });
       const won = results.length > 0 && results.every(result => result.won);
       const odds = couponOdds(room, coupon.picks);
-      return { ...coupon, odds, won, payoutCents: won ? coupon.stake * odds : 0, results };
+      const tieDivisor = room.couponVersion === 2 ? results.reduce((divisor, result) =>
+        result.won && Array.isArray(result.actual) ? divisor * result.actual.length : divisor, 1) : 1;
+      return { ...coupon, odds, won, tieDivisor, payoutCents: won ? Math.floor(coupon.stake * odds / tieDivisor) : 0, results };
     });
     const payoutCents = slips.reduce((sum, coupon) => sum + coupon.payoutCents, 0);
     const balanceCents = (COUPON_BUDGET - wallet.spent) * 100 + payoutCents;

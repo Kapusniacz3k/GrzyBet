@@ -160,9 +160,9 @@ function room(value: unknown, index: number, legacy: boolean): Room {
   if (data.gameMode !== undefined && data.gameMode !== 'classic' && data.gameMode !== 'coupons') invalid(`${path}.gameMode`);
   if (data.gameMode !== undefined) result.gameMode = data.gameMode;
   if (data.gameMode === 'coupons') {
-    if (data.couponVersion !== 1 || Object.keys(tickets).length || Object.values(answers).some(draft => Object.keys(draft).length)) invalid(`${path}.couponVersion`);
+    if ((data.couponVersion !== 1 && data.couponVersion !== 2) || Object.keys(tickets).length || Object.values(answers).some(draft => Object.keys(draft).length)) invalid(`${path}.couponVersion`);
     if (!Array.isArray(data.readyIds) || data.readyIds.some(id => typeof id !== 'string' || !members.includes(id)) || new Set(data.readyIds).size !== data.readyIds.length) invalid(`${path}.readyIds`);
-    result.couponVersion = 1;
+    result.couponVersion = data.couponVersion;
     result.readyIds = data.readyIds as string[];
     result.couponBook = {};
     for (const [member, value] of Object.entries(record(data.couponBook, `${path}.couponBook`))) {

@@ -1,98 +1,161 @@
 import type { AppColors } from '@/constants/app-theme';
 import { useAppTheme, useThemedStyles } from '@/hooks/use-app-theme';
 import { router } from 'expo-router';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { MotionPressable as Pressable, MotionView } from '@/components/motion';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { ArrowIcon, HelpCircleIcon, MushroomIcon, PlusIcon, SettingsIcon } from '@/components/grzybet-icons';
-import { useGame } from './game';
+import { ArrowIcon, GrzybdexIcon, HashIcon, HistoryIcon, InfoIcon, PeopleIcon, PlusIcon, SettingsIcon, SproutIcon } from '@/components/grzybet-icons';
+import { species, statusLabel, useGame } from './game';
+import { calculateGrzybdex } from './grzybdex-stats';
+import { homeSummary } from './home-summary';
+import { formatGrzybki } from './coupons';
 import { HowToPlayModal } from './how-to-play-modal';
-import { usePreferences } from './preferences';
+import { roomDateLabel } from './room-timing';
 
 export function HomeScreen() {
   const styles = useThemedStyles(createStyles);
   const colors = useAppTheme();
-  const { themeMode } = usePreferences();
-  const { rooms } = useGame();
+  const { rooms, userId, displayName } = useGame();
+  const greeting = displayName.trim() ? `Witaj, ${displayName.trim()}` : 'Witaj';
   const [showHelp, setShowHelp] = useState(false);
-  const latest = [...rooms].reverse().find(room => room.joined && room.phase !== 'finished');
+  const { active, recent } = useMemo(() => homeSummary(rooms, userId), [rooms, userId]);
+  const discovered = useMemo(() => calculateGrzybdex(rooms, userId, species).filter(item => item.total > 0).length, [rooms, userId]);
+  const openRoom = (id: string) => router.push({ pathname: '/room/[id]', params: { id } });
+  const openCollection = () => router.dismissTo('/grzybdex');
+
   return <SafeAreaView edges={['top', 'left', 'right']} style={styles.screen}>
     <MotionView style={styles.header}>
-      <Text accessibilityRole="header" style={styles.logo}>Grzy<Text style={styles.green}>Bet</Text></Text>
+      <Text accessibilityRole="header" style={styles.logo}>Grzy<Text style={styles.logoAccent}>Bet</Text></Text>
       <Pressable accessibilityRole="button" accessibilityLabel="Ustawienia" onPress={() => router.push('/settings')}
-        style={({ pressed }) => [styles.settings, pressed && styles.pressed]}>
-        <SettingsIcon color={colors.text} />
+        style={({ pressed }) => [styles.iconButton, pressed && styles.pressed]}>
+        <SettingsIcon size={22} color={colors.textMuted} />
       </Pressable>
     </MotionView>
 
     <ScrollView style={styles.content} contentContainerStyle={styles.page} showsVerticalScrollIndicator={false}>
-      <MotionView delay={40} style={styles.hero}>
-        <View style={[styles.mushroomFrame, themeMode === 'light' && styles.mushroomFrameLight]}>
-          <MushroomIcon size={176} color={colors.primary} stemColor={colors.mushroomStem}
-            spotColor={colors.mushroomSpots} stemOutline={themeMode === 'light' ? colors.accentBorder : undefined} />
-        </View>
-        <View style={styles.intro}>
-          <Text accessibilityRole="header" style={styles.title}>Zbierz ekipę.{'\n'}Ruszajcie do lasu.</Text>
-          <Pressable accessibilityRole="button" accessibilityLabel="Jak to działa?" accessibilityHint="Otwiera instrukcję gry z rozwijanymi rozdziałami"
-            onPress={() => setShowHelp(true)} style={({ pressed }) => [styles.help, pressed && styles.pressed]}>
-            <HelpCircleIcon color={colors.textMuted} />
-            <Text style={styles.helpLabel}>Jak to działa?</Text>
+      <MotionView delay={30} style={styles.heading}>
+        <Text accessibilityRole="header" style={styles.title}>{greeting}</Text>
+        <Pressable accessibilityRole="button" accessibilityLabel="Jak to działa?" accessibilityHint="Otwiera instrukcję gry z rozwijanymi rozdziałami"
+          onPress={() => setShowHelp(true)} style={({ pressed }) => [styles.iconButton, pressed && styles.pressed]}>
+          <InfoIcon size={19} color={colors.textMuted} />
+        </Pressable>
+      </MotionView>
+
+      <MotionView delay={70} style={[styles.tripSection, !active && styles.emptyTripSection]}>
+        {active ? <View style={styles.current}>
+          <View style={styles.statusRow}><View style={styles.statusDot} /><Text style={styles.tripStatus}>{statusLabel(active)}</Text></View>
+          <Text style={styles.roomName}>{active.name}</Text>
+          <View style={styles.members}><PeopleIcon size={16} color={colors.textMuted} /><Text style={styles.smallCopy}>Uczestnicy: {active.members.length}</Text></View>
+          <Pressable accessibilityRole="button" accessibilityLabel={'Wznów grę: ' + active.name}
+            onPress={() => openRoom(active.id)} style={({ pressed }) => [styles.primary, pressed && styles.pressed]}>
+            <Text style={styles.primaryText}>Wróć do wyprawy</Text><ArrowIcon size={18} color={colors.onActionGreen} />
+          </Pressable>
+        </View> : <View style={[styles.current, styles.empty]}>
+          <View style={styles.emptyHeading}>
+            <View style={styles.emptyIcon}><SproutIcon size={22} color={colors.textMuted} /></View>
+            <Text style={styles.tripStatus}>Brak aktywnej wyprawy</Text>
+          </View>
+          <Text style={styles.roomName}>Zaplanuj wyprawę</Text>
+          <Text style={styles.copy}>Stwórz pokój dla ekipy lub dołącz kodem do znajomych.</Text>
+        </View>}
+
+        <View style={styles.actions}>
+          <Pressable accessibilityRole="button" accessibilityLabel="Stwórz pokój" onPress={() => router.push('/create')}
+            style={({ pressed }) => [styles.shortcut, !active && styles.shortcutPrimary, pressed && styles.pressed]}>
+            <PlusIcon size={21} color={active ? colors.textMuted : colors.onActionGreen} />
+            <Text style={[styles.shortcutText, !active && styles.primaryText]}>Stwórz pokój</Text>
+          </Pressable>
+          <Pressable accessibilityRole="button" accessibilityLabel="Dołącz kodem" onPress={() => router.push('/join')}
+            style={({ pressed }) => [styles.shortcut, pressed && styles.pressed]}>
+            <HashIcon size={21} color={colors.textMuted} /><Text style={styles.shortcutText}>Dołącz kodem</Text>
           </Pressable>
         </View>
       </MotionView>
 
-      <MotionView delay={100} style={styles.actions}>
-        <Pressable accessibilityRole="button" onPress={() => router.push('/create')}
-          style={({ pressed }) => [styles.primary, pressed && styles.pressed]}>
-          <Text style={[styles.buttonText, styles.primaryText]}>Stwórz pokój</Text><PlusIcon color={colors.onPrimary} />
-        </Pressable>
-        <Pressable accessibilityRole="button" onPress={() => router.push('/join')}
-          style={({ pressed }) => [styles.secondary, pressed && styles.pressed]}>
-          <Text style={styles.buttonText}>Dołącz do pokoju</Text><ArrowIcon color={colors.text} />
-        </Pressable>
-        {latest && <Pressable accessibilityRole="button" accessibilityLabel={'Wznów grę: ' + latest.name}
-          onPress={() => router.push({ pathname: '/room/[id]', params: { id: latest.id } })}
-          style={({ pressed }) => [styles.resume, pressed && styles.pressed]}>
-          <View style={styles.resumeText}>
-            <Text style={styles.resumeTitle}>Wznów grę</Text>
-            <Text numberOfLines={1} style={styles.roomName}>{latest.name}</Text>
+      {recent && <MotionView delay={100} style={styles.history}>
+        <Text accessibilityRole="header" style={styles.sectionTitle}>Ostatnia wyprawa</Text>
+        <Pressable accessibilityRole="button" accessibilityLabel={'Podsumowanie wyprawy ' + recent.room.name}
+          onPress={() => openRoom(recent.room.id)} style={({ pressed }) => [styles.historyRow, pressed && styles.pressed]}>
+          <View style={styles.historyIcon}><HistoryIcon size={19} color={colors.textMuted} /></View>
+          <View style={styles.historyCopy}>
+            <Text style={styles.historyName}>{recent.room.name}</Text>
+            <Text style={styles.historyMeta}>{roomDateLabel(recent.room.date)} · {recent.mushrooms} szt.</Text>
+            <Text style={styles.historyResult}>{recent.result.kind === 'balance'
+              ? `Saldo: ${formatGrzybki(recent.result.balanceCents)} grzybków · Kupony`
+              : `${recent.result.points} pkt za typowanie`}</Text>
           </View>
-          <ArrowIcon size={22} direction="up-right" color={colors.textMuted} />
-        </Pressable>}
+          <ArrowIcon direction="right" size={18} color={colors.textMuted} />
+        </Pressable>
+      </MotionView>}
+
+      <MotionView delay={130}>
+        <Pressable accessibilityRole="button" accessibilityLabel={`Grzybedex: ${discovered} z ${species.length} gatunków`}
+          accessibilityHint="Otwiera kolekcję grzybów" onPress={openCollection}
+          style={({ pressed }) => [styles.collection, pressed && styles.pressed]}>
+          <View style={styles.collectionHeading}>
+            <View style={styles.collectionName}><GrzybdexIcon size={18} color={colors.textMuted} /><Text style={styles.sectionTitle}>Grzybedex</Text></View>
+            <View style={styles.collectionValue}><Text style={styles.discovered}>{discovered}<Text style={styles.smallCopy}>/{species.length} gatunków</Text></Text><ArrowIcon direction="right" size={16} color={colors.textMuted} /></View>
+          </View>
+          <View accessibilityRole="progressbar" accessibilityLabel="Odkryte gatunki" aria-valuemin={0} aria-valuemax={species.length}
+            aria-valuenow={discovered} style={styles.progressTrack}>
+            <View style={[styles.progressFill, { width: `${species.length ? discovered / species.length * 100 : 0}%` }]} />
+          </View>
+        </Pressable>
       </MotionView>
     </ScrollView>
-
     <HowToPlayModal visible={showHelp} onClose={() => setShowHelp(false)} />
   </SafeAreaView>;
 }
 
 const createStyles = (c: AppColors) => StyleSheet.create({
   screen: { flex: 1, backgroundColor: c.background },
-  header: { width: '100%', maxWidth: 540, alignSelf: 'center', paddingHorizontal: 24, paddingTop: 12, paddingBottom: 8,
+  header: { width: '100%', maxWidth: 430, alignSelf: 'center', paddingHorizontal: 22, paddingTop: 12, paddingBottom: 8,
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 16 },
-  logo: { color: c.text, fontSize: 27, fontWeight: '900', letterSpacing: -1 },
-  green: { color: c.primary },
-  settings: { width: 48, height: 48, borderWidth: 1, borderColor: c.border, borderRadius: 24, alignItems: 'center', justifyContent: 'center' },
-  pressed: { opacity: 0.6 },
+  logo: { color: c.text, fontSize: 27, fontWeight: '800', letterSpacing: -1 },
+  logoAccent: { color: c.navigationActive },
+  iconButton: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
+  pressed: { opacity: 0.65 },
   content: { flex: 1 },
-  page: { flexGrow: 1, width: '100%', maxWidth: 540, alignSelf: 'center', paddingHorizontal: 24, paddingBottom: 24 },
-  hero: { flexGrow: 1, flexShrink: 0, minHeight: 330, alignItems: 'center', justifyContent: 'center', gap: 24, paddingVertical: 28 },
-  mushroomFrame: { width: 192, height: 192, alignItems: 'center', justifyContent: 'center', borderRadius: 96 },
-  mushroomFrameLight: { backgroundColor: c.accentSoft, borderWidth: 1, borderColor: c.accentBorder },
-  intro: { alignItems: 'center', gap: 12 },
-  title: { color: c.text, fontSize: 32, lineHeight: 38, letterSpacing: -1.1, fontWeight: '900', textAlign: 'center' },
-  help: { minHeight: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingHorizontal: 12, paddingVertical: 8 },
-  helpLabel: { color: c.textSecondary, fontSize: 14, lineHeight: 21, fontWeight: '600' },
-  actions: { width: '100%', gap: 12 },
-  primary: { minHeight: 60, backgroundColor: c.primary, borderRadius: 14, paddingHorizontal: 22, paddingVertical: 16,
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 16 },
-  secondary: { minHeight: 60, borderColor: c.borderStrong, borderWidth: 1, borderRadius: 14, paddingHorizontal: 22, paddingVertical: 16,
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 16 },
-  buttonText: { color: c.text, fontSize: 16, fontWeight: '800', flexShrink: 1 },
-  primaryText: { color: c.onPrimary },
-  resume: { minHeight: 52, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 16, paddingHorizontal: 4, paddingTop: 8 },
-  resumeText: { flex: 1, gap: 4 },
-  resumeTitle: { color: c.text, fontSize: 13, fontWeight: '700' },
-  roomName: { color: c.textMuted, fontSize: 12 },
+  page: { width: '100%', maxWidth: 430, alignSelf: 'center', flexGrow: 1, justifyContent: 'space-between',
+    paddingHorizontal: 22, paddingTop: 12, paddingBottom: 24, gap: 18 },
+  heading: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
+  title: { flex: 1, minWidth: 0, color: c.text, fontSize: 26, lineHeight: 33, letterSpacing: -0.8, fontWeight: '700' },
+  tripSection: { gap: 14 },
+  emptyTripSection: { flexGrow: 1, justifyContent: 'center', paddingVertical: 8 },
+  current: { backgroundColor: c.surface, borderRadius: 18, padding: 20, gap: 10 },
+  statusRow: { flexDirection: 'row', alignItems: 'center', gap: 7 },
+  statusDot: { width: 5, height: 5, borderRadius: 3, backgroundColor: c.textMuted },
+  tripStatus: { flex: 1, color: c.textMuted, fontSize: 11, lineHeight: 17, fontWeight: '500' },
+  roomName: { color: c.text, fontSize: 23, lineHeight: 28, fontWeight: '600', letterSpacing: -0.6 },
+  members: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  smallCopy: { color: c.textMuted, fontSize: 12, lineHeight: 18, fontWeight: '400' },
+  primary: { minHeight: 50, backgroundColor: c.actionGreen, borderRadius: 12, paddingHorizontal: 16, paddingVertical: 12,
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 12, marginTop: 8 },
+  primaryText: { color: c.onActionGreen, fontSize: 14, fontWeight: '600', flexShrink: 1 },
+  empty: { minHeight: 190, justifyContent: 'center' },
+  emptyHeading: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  emptyIcon: { width: 36, height: 36, borderRadius: 12, backgroundColor: c.surfaceRaised,
+    alignItems: 'center', justifyContent: 'center' },
+  copy: { color: c.textMuted, fontSize: 13, lineHeight: 21 },
+  actions: { flexDirection: 'row', gap: 12 },
+  shortcut: { flex: 1, minWidth: 0, minHeight: 88, borderColor: c.border, borderWidth: 1, borderRadius: 14,
+    padding: 14, justifyContent: 'center', alignItems: 'flex-start', gap: 10 },
+  shortcutPrimary: { backgroundColor: c.actionGreen, borderColor: c.actionGreen },
+  shortcutText: { color: c.text, fontSize: 13, lineHeight: 19, fontWeight: '600' },
+  history: { gap: 0 },
+  sectionTitle: { color: c.text, fontSize: 13, lineHeight: 20, fontWeight: '600' },
+  historyRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingTop: 16, paddingBottom: 18, borderBottomWidth: 1, borderBottomColor: c.border },
+  historyIcon: { width: 36, height: 36, borderRadius: 12, backgroundColor: c.surfaceRaised, alignItems: 'center', justifyContent: 'center' },
+  historyCopy: { flex: 1, minWidth: 0, gap: 4 },
+  historyName: { color: c.text, fontSize: 14, lineHeight: 20, fontWeight: '600' },
+  historyMeta: { color: c.textMuted, fontSize: 11, lineHeight: 17 },
+  historyResult: { color: c.text, fontSize: 12, lineHeight: 18 },
+  collection: { gap: 14 },
+  collectionHeading: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 },
+  collectionName: { flexDirection: 'row', alignItems: 'center', gap: 7 },
+  collectionValue: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  discovered: { color: c.text, fontSize: 12, lineHeight: 18, fontWeight: '600' },
+  progressTrack: { height: 4, borderRadius: 3, backgroundColor: c.surfaceRaised, overflow: 'hidden' },
+  progressFill: { height: '100%', borderRadius: 3, backgroundColor: c.progress },
 });

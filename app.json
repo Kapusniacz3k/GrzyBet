@@ -13,7 +13,7 @@
     "android": {
       "package": "pl.grzybet.app",
       "adaptiveIcon": {
-        "backgroundColor": "#111111",
+        "backgroundColor": "#171614",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
@@ -36,16 +36,18 @@
       [
         "expo-splash-screen",
         {
-          "backgroundColor": "#F5F7F2",
+          "backgroundColor": "#F4F1EB",
           "image": "./assets/images/splash-icon-light.png",
           "dark": {
-            "backgroundColor": "#111111",
+            "backgroundColor": "#171614",
             "image": "./assets/images/splash-icon.png"
           },
           "imageWidth": 112,
           "resizeMode": "contain"
         }
-      ]
+      ],
+      "expo-status-bar",
+      "expo-web-browser"
     ],
     "experiments": {
       "typedRoutes": true,

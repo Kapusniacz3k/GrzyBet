@@ -5,6 +5,7 @@ export type Account = {
   email: string;
   busy: boolean;
   hasGuestProgress: boolean;
+  deletionBlockedReason?: string;
   register: (email: string, password: string, confirmation: string) => Promise<void>;
   signIn: (email: string, password: string) => Promise<void>;
   resetPassword: (email: string) => Promise<void>;

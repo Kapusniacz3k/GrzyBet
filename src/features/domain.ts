@@ -29,7 +29,7 @@ export type Room = {
   scoringVersion?: 2;
   /** Missing in older rooms means the original four-question mode. */
   gameMode?: GameMode;
-  couponVersion?: 1;
+  couponVersion?: 1 | 2;
   couponBook?: Record<string, CouponWallet>;
   limit: number;
   members: string[];

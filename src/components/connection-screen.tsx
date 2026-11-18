@@ -22,10 +22,10 @@ export function ConnectionScreen({ stage, error = '', onRetry }: {
   const failed = !!error;
   return <SafeAreaView style={styles.screen}>
     <ScrollView contentContainerStyle={styles.page} showsVerticalScrollIndicator={false}>
-      <Text accessibilityLabel="GrzyBet" style={styles.brand}>Grzy<Text style={styles.green}>Bet</Text></Text>
+      <Text accessibilityLabel="GrzyBet" style={styles.brand}>Grzy<Text style={styles.brandAccent}>Bet</Text></Text>
       <MotionView distance={0} style={styles.main}>
         <FloatingView active={!failed} accessible={false} importantForAccessibility="no-hide-descendants" style={styles.emblem}>
-          <MushroomIcon size={112} color={colors.primary} stemColor={colors.mushroomStem} spotColor={colors.mushroomSpots} />
+          <MushroomIcon size={112} color={colors.navigationActive} stemColor={colors.mushroomStem} spotColor={colors.mushroomSpots} />
           {failed && <View style={styles.warning}><ExclamationIcon color={colors.warningText} /></View>}
         </FloatingView>
         {failed && <View style={styles.message}>
@@ -49,7 +49,7 @@ const createStyles = (c: AppColors) => StyleSheet.create({
   page: { flexGrow: 1, width: '100%', maxWidth: 460, alignSelf: 'center', alignItems: 'center',
     paddingHorizontal: 28, paddingTop: 28, paddingBottom: 28 },
   brand: { color: c.text, fontSize: 30, lineHeight: 38, fontWeight: '900', letterSpacing: -1 },
-  green: { color: c.primary },
+  brandAccent: { color: c.navigationActive },
   main: { flexGrow: 1, flexShrink: 0, width: '100%', alignItems: 'center', justifyContent: 'center', paddingVertical: 40, gap: 28 },
   emblem: { width: 188, height: 188, alignItems: 'center', justifyContent: 'center' },
   warning: { position: 'absolute', right: 4, bottom: 9, width: 36, height: 36, borderRadius: 18,

@@ -1,19 +1,26 @@
 import { useState } from 'react';
 import { router, useLocalSearchParams } from 'expo-router';
-import { Text, View } from 'react-native';
-import { answeredCount, calculateResults, isReady, memberName, dateLabel, everyoneReady, statusLabel, useGame, type Room } from './game';
+import { StyleSheet, Text, View } from 'react-native';
+import type { AppColors } from '@/constants/app-theme';
+import { answeredCount, calculateResults, isReady, memberName, dateLabel, everyoneReady, useGame, type Room } from './game';
 import { HarvestPanel } from './harvest-panel';
 import { TicketForm } from './ticket-form';
 import { PredictionReceipt } from './prediction-receipt';
 import { ScoringRules } from './scoring-rules';
 import { CouponRoom, CouponResults } from './coupon-board';
 import { MotionPressable as Pressable } from '@/components/motion';
-import { ChevronIcon } from '@/components/grzybet-icons';
-import { useAppTheme } from '@/hooks/use-app-theme';
-import { Button, Card, Choices, Copy, Label, Message, Page, useUIStyles, Title } from './ui';
+import { CheckIcon, ChevronIcon, HashIcon, PeopleIcon, ProfileIcon } from '@/components/grzybet-icons';
+import { useAppTheme, useThemedStyles } from '@/hooks/use-app-theme';
+import { Button, Card, Choices, Copy, Label, Message, Page, RoomAppearance, Title } from './ui';
+import { RoomHeader } from './room-header';
 
 export function RoomScreen() {
-  const s = useUIStyles();
+  return <RoomAppearance><RoomContent /></RoomAppearance>;
+}
+
+function RoomContent() {
+  const s = useThemedStyles(createStyles);
+  const colors = useAppTheme();
   const { id } = useLocalSearchParams<{ id: string }>();
   const { rooms, userId, mode } = useGame();
   const room = rooms.find(r => r.id === id && r.joined);
@@ -28,17 +35,20 @@ export function RoomScreen() {
     <ParticipantReadiness room={room} />
     {room.host === userId ? <OrganizerPanel key={room.phase} room={room} /> : <Copy>Poszukiwania wystartuje organizator, gdy wszyscy zakończą stawianie.</Copy>}
   </CouponRoom>;
-  if (room.phase === 'predicting' && !room.tickets[userId]) return <Page topInset={false} contentStyle={{ paddingTop: 0 }}>
-    <Text style={s.badge}>TYPOWANIE ROZPOCZĘTE</Text>
+  if (room.phase === 'predicting' && !room.tickets[userId]) return <Page key={`${room.id}-question-${answeredCount(room, userId)}`} topInset={false} contentStyle={{ paddingTop: 0 }}>
+    <RoomHeader room={room} />
     <TicketForm key={room.id} room={room} />
   </Page>;
-  return <Page topInset={false} contentStyle={{ paddingTop: 0 }}>
-    <Text style={s.badge}>{statusLabel(room).toUpperCase()}</Text>
-    {room.phase !== 'predicting' && <Title>{room.name}</Title>}
-    <Copy>Organizator: {memberName(room, room.host)}</Copy>
-    {room.phase === 'lobby' && <Copy>Tryb: {room.gameMode === 'coupons' ? 'Kupony · 10 grzybków dla każdego' : 'Typowanie · cztery pytania'}</Copy>}
-    {room.phase === 'lobby' && <Card><Copy>KOD POKOJU</Copy><Text selectable style={s.title}>{room.code}</Text><Copy>{mode === 'online' ? 'Przekaż kod znajomym, żeby dołączyli do lobby.' : 'W wersji lokalnej kod działa tylko na tym urządzeniu.'}</Copy></Card>}
-    <Choices options={tabs} value={activeTab} onChange={setTab} />
+  return <Page key={`${room.id}-${room.phase}-${activeTab}`} topInset={false} contentStyle={{ paddingTop: 0 }}>
+    <RoomHeader room={room} />
+    {room.phase === 'lobby' && <Card>
+      <View style={s.sectionHeading}><HashIcon size={18} color={colors.textMuted} /><Label>Kod wyprawy</Label></View>
+      <Text accessibilityLabel={'Kod wyprawy: ' + room.code} selectable style={s.roomCode}>{room.code}</Text>
+      <Copy>{mode === 'online' ? 'Przekaż kod znajomym. Można dołączyć do rozpoczęcia gry.' : 'W wersji lokalnej kod działa tylko na tym urządzeniu.'}</Copy>
+      <View style={s.cardFootnote}><Copy>{room.gameMode === 'coupons' ? 'Kupony · 10 grzybków na osobę'
+        : room.scoringVersion === 2 ? 'Typowanie · 4 pytania i pewniak ×2' : 'Typowanie · 4 pytania'}</Copy></View>
+    </Card>}
+    {tabs.length > 1 && <Choices options={tabs} value={activeTab} onChange={setTab} />}
     {activeTab === 'Lobby' && <>
       <ParticipantReadiness room={room} />
       {room.phase === 'predicting' && <Button title="Zobacz swoje odpowiedzi" onPress={() => setTab('Typowanie')} />}
@@ -58,24 +68,40 @@ export function RoomScreen() {
 }
 
 function ParticipantReadiness({ room }: { room: Room }) {
-  const s = useUIStyles();
+  const s = useThemedStyles(createStyles);
+  const colors = useAppTheme();
   const { userId } = useGame();
   const ready = room.members.filter(member => isReady(room, member)).length;
-  return <>
-    <Label>Ekipa · {room.members.length}/{room.limit}</Label>
-    {room.phase === 'predicting' && <Card>
-      <Label>Gotowi: {ready} / {room.members.length}</Label>
+  return <Card>
+    <View style={s.sectionHeading}>
+      <PeopleIcon size={18} color={colors.textMuted} /><View style={s.flex}><Label>Twoja ekipa</Label></View>
+      <Text style={s.smallCopy}>{room.members.length}/{room.limit}</Text>
+    </View>
+    {room.phase === 'predicting' && <View style={s.readiness}>
+      <View style={s.between}><Text style={s.smallCopy}>Gotowi do wyjścia</Text><Text style={s.readinessValue}>{ready}/{room.members.length}</Text></View>
+      <View accessibilityRole="progressbar" accessibilityLabel="Gotowość uczestników" aria-valuemin={0}
+        aria-valuemax={room.members.length} aria-valuenow={ready} style={s.progressTrack}>
+        <View style={[s.progressFill, { width: `${room.members.length ? ready / room.members.length * 100 : 0}%` }]} />
+      </View>
       <Copy>{everyoneReady(room) ? 'Wszyscy skończyli. Czekamy, aż organizator wystartuje poszukiwania.'
         : room.gameMode === 'coupons' ? 'Czekamy, aż każdy zakończy stawianie kuponów i oznaczy gotowość.' : 'Czekamy, aż wszyscy odpowiedzą na pytania i zatwierdzą swoje typy.'}</Copy>
-    </Card>}
-    {room.members.map(member => <View key={member} style={s.row}>
-      <Label>{memberName(room, member) + (member === userId ? ' (Ty)' : '')}</Label>
-      <Copy>{room.phase === 'lobby' ? 'W lobby' : isReady(room, member) ? 'Gotowe ✓' : room.gameMode === 'coupons' ? 'Stawia kupony' : answeredCount(room, member) + '/4 odpowiedzi'}</Copy>
+    </View>}
+    {room.members.map((member, index) => <View key={member} style={[s.member, index > 0 && s.memberDivider]}>
+      <View style={s.avatar}><ProfileIcon size={18} color={colors.textMuted} /></View>
+      <View style={s.flex}>
+        <Text style={s.memberName}>{memberName(room, member)}{member === userId ? ' (Ty)' : ''}</Text>
+        {member === room.host && <Text style={s.smallCopy}>Organizator</Text>}
+      </View>
+      {room.phase === 'predicting' && isReady(room, member) ? <View style={s.memberStatus}>
+        <CheckIcon size={14} color={colors.navigationActive} /><Text style={s.readyLabel}>Gotowe</Text>
+      </View> : <Text style={s.memberProgress}>{room.phase === 'lobby' ? 'W lobby'
+        : room.gameMode === 'coupons' ? 'Stawia kupony' : answeredCount(room, member) + '/4 odpowiedzi'}</Text>}
     </View>)}
-  </>;
+  </Card>;
 }
 
 function OrganizerPanel({ room }: { room: Room }) {
+  const s = useThemedStyles(createStyles);
   const { begin, start, finish, busy } = useGame();
   const [confirm, setConfirm] = useState(false);
   const [error, setError] = useState('');
@@ -97,41 +123,68 @@ function OrganizerPanel({ room }: { room: Room }) {
       else await finish(room.id);
     } catch (e) { setError((e as Error).message); }
   }
-  return <Card><Label>Panel organizatora</Label><Copy>{explanation}</Copy>
+  return <Card><View style={s.between}><Label>Panel organizatora</Label><Text style={s.smallCopy}>Tylko Ty</Text></View><Copy>{explanation}</Copy>
     {pending > 0 && room.phase === 'collecting' && <Message text={'Do sprawdzenia: ' + pending + '. Rozpatrz wszystkie zgłoszenia w zakładce Zbiory przed zakończeniem.'} />}
     {confirm ? <><Copy>Potwierdź zmianę etapu. Nie można jej cofnąć.</Copy><Button title={'Potwierdź: ' + title.toLowerCase()} disabled={blocked || busy} onPress={() => { void apply(); }} /><Button title="Anuluj" secondary onPress={() => setConfirm(false)} /></> :
-      <Button title={title} secondary disabled={blocked || busy} onPress={() => setConfirm(true)} />}
+      <Button title={title} secondary={room.phase === 'collecting'} disabled={blocked || busy} onPress={() => setConfirm(true)} />}
     <Message text={error} />
   </Card>;
 }
 
 function ResultsPanel({ room }: { room: Room }) {
-  const s = useUIStyles();
+  const s = useThemedStyles(createStyles);
   const colors = useAppTheme();
   const { userId } = useGame();
-  const [metric, setMetric] = useState('Typowanie');
-  const [expanded, setExpanded] = useState<string | null>(userId);
+  const [expanded, setExpanded] = useState<string | null>(null);
   if (room.phase !== 'finished') return null;
   const results = calculateResults(room);
-  const rows = metric === 'Zbiory' ? [...results].sort((a, b) => b.mushrooms - a.mushrooms) : results;
+  const own = results.find(row => row.member === userId);
   return <>
-    <Label>Wyniki końcowe</Label>
-    <Copy>Sprawdź swój kupon i porównaj typy ekipy. Liczą się tylko zatwierdzone zbiory.</Copy>
-    <Card><Label>{results.reduce((sum, row) => sum + row.mushrooms, 0)} grzybów całej ekipy</Label><Copy>Oczekujące i odrzucone zgłoszenia nie zwiększają wyniku.</Copy></Card>
-    <Choices options={['Zbiory', 'Typowanie']} value={metric} onChange={setMetric} />
-    {rows.map(row => <Card key={row.member}>
-        {metric === 'Typowanie' ? <>
-          <Pressable accessibilityRole="button" accessibilityLabel={row.member === userId ? 'Twój kupon' : `Kupon gracza ${memberName(room, row.member)}`}
-            aria-expanded={expanded === row.member} onPress={() => setExpanded(current => current === row.member ? null : row.member)}
-            style={[s.row, { minHeight: 48 }]}>
-            <View style={{ flex: 1, minWidth: 0, gap: 4 }}><Label>{row.place}. {memberName(room, row.member)}{row.member === userId ? ' (Ty)' : ''}</Label>
-              <Copy>{row.points} pkt · {row.mushrooms} grzybów</Copy></View>
-            <ChevronIcon size={20} direction={expanded === row.member ? 'up' : 'down'} color={colors.textMuted} />
-          </Pressable>
-          {expanded === row.member && <PredictionReceipt room={room} result={row} own={row.member === userId} />}
-        </> : <View style={s.row}><View style={{ flex: 1 }}><Label>{rows.findIndex(r => r.mushrooms === row.mushrooms) + 1}. {memberName(room, row.member)}</Label></View>
-          <Label>{row.mushrooms} szt.</Label></View>}
-      </Card>)}
+    <Card>
+      <Text style={s.smallCopy}>Twoje podsumowanie</Text>
+      <View style={s.stats}>
+        <View style={s.stat}><Text style={s.statValue}>{own?.points ?? 0}<Text style={s.statUnit}> pkt</Text></Text><Text style={s.smallCopy}>za typowanie</Text></View>
+        <View style={[s.stat, s.statDivider]}><Text style={s.statValue}>{own?.mushrooms ?? 0}<Text style={s.statUnit}> szt.</Text></Text><Text style={s.smallCopy}>Twój zbiór</Text></View>
+      </View>
+      <View style={s.cardFootnote}><Copy>Cała ekipa: {results.reduce((sum, row) => sum + row.mushrooms, 0)} zatwierdzonych grzybów.</Copy></View>
+    </Card>
+    <View style={s.sectionHeading}><View style={s.flex}><Label>Wyniki ekipy</Label></View><Text style={s.smallCopy}>Ekipa: {results.length}</Text></View>
+    {results.map(row => <Card key={row.member}>
+      <Pressable accessibilityRole="button" accessibilityLabel={row.member === userId ? 'Twój kupon' : `Kupon gracza ${memberName(room, row.member)}`}
+        aria-expanded={expanded === row.member} onPress={() => setExpanded(current => current === row.member ? null : row.member)}
+        style={s.resultRow}>
+        <View style={{ flex: 1, minWidth: 0, gap: 4 }}><Label>{row.place}. {memberName(room, row.member)}{row.member === userId ? ' (Ty)' : ''}</Label>
+          <Copy>{row.points} pkt · {row.mushrooms} szt.</Copy></View>
+        <ChevronIcon size={20} direction={expanded === row.member ? 'up' : 'down'} color={colors.textMuted} />
+      </Pressable>
+      {expanded === row.member && <PredictionReceipt room={room} result={row} own={row.member === userId} />}
+    </Card>)}
     <ScoringRules room={room} />
   </>;
 }
+
+const createStyles = (c: AppColors) => StyleSheet.create({
+  roomCode: { color: c.text, fontSize: 30, lineHeight: 40, letterSpacing: 4, fontWeight: '700' },
+  sectionHeading: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  between: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
+  flex: { flex: 1, minWidth: 0 },
+  smallCopy: { color: c.textMuted, fontSize: 11, lineHeight: 18 },
+  cardFootnote: { borderTopWidth: 1, borderTopColor: c.border, paddingTop: 12 },
+  readiness: { gap: 10, paddingBottom: 2 },
+  readinessValue: { color: c.text, fontSize: 12, lineHeight: 18, fontWeight: '600' },
+  progressTrack: { height: 4, borderRadius: 3, backgroundColor: c.surfaceRaised, overflow: 'hidden' },
+  progressFill: { height: '100%', borderRadius: 3, backgroundColor: c.navigationActive },
+  member: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 48 },
+  memberDivider: { borderTopWidth: 1, borderTopColor: c.border, paddingTop: 12 },
+  avatar: { width: 34, height: 34, borderRadius: 11, backgroundColor: c.surfaceRaised, alignItems: 'center', justifyContent: 'center' },
+  memberName: { color: c.text, fontSize: 13, lineHeight: 20, fontWeight: '600' },
+  memberStatus: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  readyLabel: { color: c.navigationActive, fontSize: 11, lineHeight: 18, fontWeight: '500' },
+  memberProgress: { maxWidth: '42%', color: c.textMuted, fontSize: 11, lineHeight: 18, textAlign: 'right' },
+  stats: { flexDirection: 'row', gap: 16 },
+  stat: { flex: 1, minWidth: 0, gap: 3 },
+  statDivider: { paddingLeft: 16, borderLeftWidth: 1, borderLeftColor: c.border },
+  statValue: { color: c.text, fontSize: 30, lineHeight: 38, fontWeight: '700', letterSpacing: -0.7 },
+  statUnit: { color: c.textMuted, fontSize: 13, fontWeight: '500', letterSpacing: 0 },
+  resultRow: { minHeight: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
+});

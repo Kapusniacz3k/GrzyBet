@@ -70,7 +70,6 @@ export function ProfileScreen() {
           <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.65} style={styles.highlightValue}>{stats?.mushrooms ?? 0}</Text>
           <Text style={styles.highlightLabel}>Zebrane grzyby</Text>
         </View>
-        <View style={styles.highlightDivider} />
         <View accessible accessibilityLabel={`Punkty za typowanie z zakończonych wypraw: ${stats?.points ?? 0}`} style={styles.highlight}>
           <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.65} style={styles.highlightValue}>{stats?.points ?? 0}</Text>
           <Text style={styles.highlightLabel}>Punkty za typowanie</Text>
@@ -151,35 +150,34 @@ function ProfileMetric({ value, label, description, divider = false }: { value: 
 }
 
 const createStyles = (c: AppColors) => StyleSheet.create({
-  page: { gap: 26, paddingTop: 12 },
+  page: { gap: 24, paddingTop: 16 },
   pageHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 16 },
   pageTitle: { flex: 1, color: c.text, fontSize: 28, lineHeight: 36, fontWeight: '700', letterSpacing: -0.8 },
   settings: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center', borderRadius: 24 },
   identity: { flexDirection: 'row', alignItems: 'center', gap: 16, paddingVertical: 4 },
-  avatar: { width: 64, height: 64, borderRadius: 32, backgroundColor: c.surface, borderWidth: 1, borderColor: c.border, alignItems: 'center', justifyContent: 'center' },
-  initial: { color: c.accent, fontSize: 27, fontWeight: '600' },
+  avatar: { width: 58, height: 58, borderRadius: 29, backgroundColor: c.avatar, alignItems: 'center', justifyContent: 'center' },
+  initial: { color: c.avatarText, fontSize: 25, fontWeight: '600' },
   identityText: { flex: 1, minWidth: 0, gap: 6 },
-  nickname: { color: c.text, fontSize: 26, lineHeight: 33, fontWeight: '700', letterSpacing: -0.6 },
+  nickname: { color: c.text, fontSize: 25, lineHeight: 32, fontWeight: '600', letterSpacing: -0.6 },
   modeLabel: { color: c.textMuted, fontSize: 12, lineHeight: 18 },
   statistics: { gap: 12 },
   sectionTitle: { color: c.text, fontSize: 15, lineHeight: 22, fontWeight: '600' },
-  summaryCard: { borderWidth: 1, borderColor: c.border, borderRadius: 18, backgroundColor: c.surface, padding: 18, gap: 18 },
+  summaryCard: { borderRadius: 18, backgroundColor: c.surface, padding: 18, gap: 16 },
   highlights: { flexDirection: 'row', gap: 18 },
   highlight: { flex: 1, minWidth: 0, gap: 5 },
-  highlightDivider: { width: 1, backgroundColor: c.border, marginVertical: 5 },
-  highlightValue: { color: c.text, fontSize: 38, lineHeight: 46, fontWeight: '700', letterSpacing: -1.2 },
+  highlightValue: { color: c.text, fontSize: 34, lineHeight: 42, fontWeight: '600', letterSpacing: -1 },
   highlightLabel: { color: c.textMuted, fontSize: 12, lineHeight: 18 },
   statsHint: { color: c.textMuted, fontSize: 11, lineHeight: 17 },
   metrics: { flexDirection: 'row', borderTopWidth: 1, borderTopColor: c.border, paddingTop: 16 },
   metric: { flex: 1, minWidth: 0, alignItems: 'center', gap: 5, paddingHorizontal: 4 },
-  metricDivider: { borderLeftWidth: 1, borderLeftColor: c.border },
+  metricDivider: { paddingLeft: 8 },
   metricValue: { maxWidth: '100%', color: c.text, fontSize: 19, lineHeight: 25, fontWeight: '600', letterSpacing: -0.3 },
-  metricLabel: { color: c.textMuted, fontSize: 10, lineHeight: 16 },
-  history: { borderWidth: 1, borderColor: c.border, borderRadius: 18, backgroundColor: c.surface, overflow: 'hidden' },
-  historyHeader: { minHeight: 64, padding: 16, flexDirection: 'row', alignItems: 'center', gap: 10 },
+  metricLabel: { color: c.textMuted, fontSize: 11, lineHeight: 16 },
+  history: { borderBottomWidth: 1, borderBottomColor: c.border },
+  historyHeader: { minHeight: 56, paddingVertical: 12, flexDirection: 'row', alignItems: 'center', gap: 10 },
   historyTitle: { flex: 1, minWidth: 0 },
   count: { color: c.textMuted, fontSize: 12 },
-  historyContent: { paddingHorizontal: 16, paddingBottom: 2 },
+  historyContent: { paddingBottom: 2 },
   historyItem: { borderTopWidth: 1, borderTopColor: c.border, paddingVertical: 16, gap: 12 },
   tripHeading: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
   tripText: { flex: 1, minWidth: 0, gap: 5 },
@@ -194,7 +192,7 @@ const createStyles = (c: AppColors) => StyleSheet.create({
   copy: { color: c.textMuted, fontSize: 13, lineHeight: 20 },
   smallCopy: { color: c.textMuted, fontSize: 11, lineHeight: 18 },
   accountNote: { borderTopWidth: 1, borderTopColor: c.border, paddingTop: 16 },
-  accountCard: { borderWidth: 1, borderColor: c.border, borderRadius: 18, backgroundColor: c.surface, padding: 16, gap: 10 },
+  accountCard: { borderRadius: 18, backgroundColor: c.surface, padding: 18, gap: 10 },
   accountLink: { minHeight: 48, alignItems: 'center', justifyContent: 'center', paddingVertical: 10 },
   pressed: { opacity: 0.6 },
 });

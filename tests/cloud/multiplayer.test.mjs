@@ -60,16 +60,16 @@ test('virtual coupons share readiness and immutable budgets, stay private until 
   const id = await host.repo.create({ name: 'Wyprawa z kuponami', limit: 2, gameMode: 'coupons' });
   const roomRef = doc(host.db, 'rooms', id);
   const ownLedger = doc(host.db, 'rooms', id, 'coupons', host.user.uid);
-  const first = { id: 'first001', stake: 2, picks: { winner: host.user.uid, own: 'over10', total: 'under20', species: 'Borowik' } };
-  assert.equal((await getDoc(roomRef)).data().couponVersion, 1);
+  const first = { id: 'first001', stake: 2, picks: { winner: host.user.uid, own: 'over10', species: 'Uszak bzowy' } };
+  assert.equal((await getDoc(roomRef)).data().couponVersion, 2);
   await denied(updateDoc(roomRef, { gameMode: 'classic' }));
-  await denied(updateDoc(roomRef, { couponVersion: 2 }));
+  await denied(updateDoc(roomRef, { couponVersion: 1 }));
   await denied(setDoc(ownLedger, { spent: 2, slips: [first] }));
   await guest.repo.join(await roomCode(host.db, id));
   await host.repo.transition(id, 'begin');
   await host.repo.placeCoupon(id, first.picks, 2);
-  await host.repo.placeCoupon(id, { total: 'over20' }, 3);
-  await guest.repo.placeCoupon(id, { own: 'under10' }, 2);
+  await host.repo.placeCoupon(id, { total: 'over-mid' }, 3);
+  await guest.repo.placeCoupon(id, { own: 'over5' }, 2);
   const ledger = (await getDoc(ownLedger)).data();
   assert.equal(ledger.spent, 5);
   assert.equal(ledger.slips.length, 2);
@@ -94,7 +94,7 @@ test('virtual coupons share readiness and immutable budgets, stay private until 
   const collecting = await observe(guest.repo, id, room => room.phase === 'collecting');
   assert.deepEqual(calculateCouponResults(collecting), []);
   await uploadHarvestPhoto(host.storage, id, host.user.uid, 'coupon-harvest', png, 'image/png');
-  await host.repo.submit(id, 'coupon-harvest', { species: 'Borowik', count: 12, note: '', photoUri: 'file:///test.png' });
+  await host.repo.submit(id, 'coupon-harvest', { species: 'Uszak bzowy', count: 12, note: '', photoUri: 'file:///test.png' });
   await uploadHarvestPhoto(guest.storage, id, guest.user.uid, 'coupon-guest', png, 'image/png');
   await guest.repo.submit(id, 'coupon-guest', { species: 'Kurka', count: 8, note: '', photoUri: 'file:///test.png' });
   await assert.rejects(host.repo.transition(id, 'finish'), /rozpatrz/);
@@ -107,8 +107,8 @@ test('virtual coupons share readiness and immutable budgets, stay private until 
   const hostResults = calculateCouponResults(await hostFinal);
   const guestResults = calculateCouponResults(await guestFinal);
   assert.deepEqual(hostResults, guestResults);
-  assert.equal(hostResults.find(row => row.member === host.user.uid).balanceCents, 12470);
-  assert.equal(hostResults.find(row => row.member === guest.user.uid).balanceCents, 1160);
+  assert.equal(hostResults.find(row => row.member === host.user.uid).balanceCents, 3920);
+  assert.equal(hostResults.find(row => row.member === guest.user.uid).balanceCents, 1100);
   assert.equal((await getDocs(collection(guest.db, 'rooms', id, 'coupons'))).size, 2);
   await denied(deleteDoc(ownLedger));
 });
@@ -118,7 +118,7 @@ test('concurrent coupons cannot overspend the same ten grzybki or bypass the mod
   const id = await host.repo.create({ name: 'Równoległe kupony', limit: 2, gameMode: 'coupons' });
   await host.repo.transition(id, 'begin');
   const attempts = await Promise.allSettled([
-    host.repo.placeCoupon(id, { own: 'over5' }, 6), host.repo.placeCoupon(id, { total: 'over20' }, 6),
+    host.repo.placeCoupon(id, { own: 'over5' }, 6), host.repo.placeCoupon(id, { own: 'over10' }, 6),
   ]);
   assert.equal(attempts.filter(item => item.status === 'fulfilled').length, 1);
   assert.equal(attempts.filter(item => item.status === 'rejected').length, 1);
@@ -136,6 +136,43 @@ test('concurrent coupons cannot overspend the same ten grzybki or bypass the mod
   await host.repo.transition(next, 'begin');
   await host.repo.placeCoupon(next, { own: 'over5' }, 10);
   assert.equal((await getDoc(doc(host.db, 'rooms', next, 'coupons', host.user.uid))).data().spent, 10);
+});
+
+test('balanced coupon rules block abstention and correlated picks, and tie payouts remove the all-winners hedge', { timeout: 60000 }, async () => {
+  const host = await client('Balans host');
+  const guest = await client('Balans gracz');
+  const id = await host.repo.create({ name: 'Balans i remisy', limit: 2, gameMode: 'coupons' });
+  await guest.repo.join(await roomCode(host.db, id));
+  await host.repo.transition(id, 'begin');
+  const ledgerRef = doc(host.db, 'rooms', id, 'coupons', host.user.uid);
+  for (const picks of [{ own: 'under5' }, { own: 'under10' }, { own: 'under20' }, { own: 'over5', total: 'over-low' }, { total: 'over20' }]) {
+    await denied(setDoc(ledgerRef, { spent: 1, slips: [{ id: 'blocked1', stake: 1, picks }] }));
+  }
+  await host.repo.placeCoupon(id, { winner: host.user.uid }, 5);
+  await host.repo.placeCoupon(id, { winner: guest.user.uid }, 5);
+  await guest.repo.placeCoupon(id, { winner: host.user.uid, species: 'Borowik' }, 1);
+  await host.repo.finishCoupons(id);
+  await guest.repo.finishCoupons(id);
+  await host.repo.transition(id, 'start');
+  await uploadHarvestPhoto(host.storage, id, host.user.uid, 'balance-host', png, 'image/png');
+  await host.repo.submit(id, 'balance-host', { species: 'Borowik', count: 12, note: '', photoUri: 'file:///test.png' });
+  await uploadHarvestPhoto(guest.storage, id, guest.user.uid, 'balance-guest', png, 'image/png');
+  await guest.repo.submit(id, 'balance-guest', { species: 'Kurka', count: 12, note: '', photoUri: 'file:///test.png' });
+  await host.repo.review(id, 'balance-host', 'approved');
+  await host.repo.review(id, 'balance-guest', 'approved');
+  const final = observe(guest.repo, id, room => room.phase === 'finished' && Object.keys(room.couponBook).length === 2 && room.harvests.length === 2 && room.harvests.every(h => h.status === 'approved'));
+  await host.repo.transition(id, 'finish');
+  const result = calculateCouponResults(await final);
+  assert.equal(result.find(row => row.member === host.user.uid).balanceCents, 900);
+  const guestResult = result.find(row => row.member === guest.user.uid);
+  assert.equal(guestResult.balanceCents, 1125);
+  assert.equal(guestResult.slips[0].tieDivisor, 4);
+  assert.equal(guestResult.slips[0].payoutCents, 225);
+  const solo = await host.repo.create({ name: 'Samotny gracz', limit: 2, gameMode: 'coupons' });
+  await host.repo.transition(solo, 'begin');
+  for (const picks of [{ winner: host.user.uid }, { total: 'under-low' }]) {
+    await denied(setDoc(doc(host.db, 'rooms', solo, 'coupons', host.user.uid), { spent: 1, slips: [{ id: 'blocked2', stake: 1, picks }] }));
+  }
 });
 
 test('boosts cannot change answers, stack multipliers or be edited after confirmation, and partial scores synchronize', { timeout: 60000 }, async () => {
@@ -215,15 +252,15 @@ test('room creation date and prediction start use immutable server timestamps sh
   assert.equal(finished.predictionStartedAt.isEqual(started.predictionStartedAt), true);
 });
 
-test('all twenty species can be predicted, submitted and reviewed under the cloud rules', { timeout: 120000 }, async () => {
+test('all fifty species can be predicted, submitted and reviewed under the cloud rules', { timeout: 120000 }, async () => {
   const host = await client('Katalog');
-  const id = await host.repo.create({ name: 'Dwadzieścia gatunków', limit: 2 });
+  const id = await host.repo.create({ name: 'Pięćdziesiąt gatunków', limit: 2 });
   await host.repo.transition(id, 'begin');
   for (const name of species) {
-    await fill(host, id, { winner: host.user.uid, own: 20, total: 20, species: name });
+    await fill(host, id, { winner: host.user.uid, own: species.length, total: species.length, species: name });
     if (name !== species.at(-1)) await host.repo.restart(id);
   }
-  await host.repo.confirm(id, { winner: host.user.uid, own: 20, total: 20, species: species.at(-1) });
+  await host.repo.confirm(id, { winner: host.user.uid, own: species.length, total: species.length, species: species.at(-1) });
   await host.repo.transition(id, 'start');
   for (const [index, name] of species.entries()) {
     const hid = `species-${index}`;
@@ -231,7 +268,7 @@ test('all twenty species can be predicted, submitted and reviewed under the clou
     await host.repo.submit(id, hid, { species: name, count: 1, note: '', photoUri: 'file:///test.png' });
     await host.repo.review(id, hid, 'approved');
   }
-  const finished = observe(host.repo, id, room => room.phase === 'finished' && room.harvests.length === 20 && !!room.tickets[host.user.uid]);
+  const finished = observe(host.repo, id, room => room.phase === 'finished' && room.harvests.length === species.length && !!room.tickets[host.user.uid]);
   await host.repo.transition(id, 'finish');
   assert.equal(calculateResults(await finished)[0].points, 350);
 });

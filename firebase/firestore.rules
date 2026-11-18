@@ -19,7 +19,15 @@ service cloud.firestore {
         'Borowik usiatkowany', 'Krasnoborowik ceglastopory', 'Podgrzybek zajączek', 'Podgrzybek złotawy',
         'Maślak pstry', 'Maślak sitarz', 'Maślak ziarnisty', 'Maślak żółty',
         'Koźlarz babka', 'Koźlarz czerwony', 'Koźlarz pomarańczowożółty', 'Mleczaj rydz',
-        'Czubajka kania', 'Opieńka miodowa', 'Lejkowiec dęty', 'Gołąbek zielonawofioletowy'
+        'Czubajka kania', 'Opieńka miodowa', 'Lejkowiec dęty', 'Gołąbek zielonawofioletowy',
+        'Boczniak ostrygowaty', 'Boczniak łyżkowaty', 'Borowik sosnowy', 'Koźlarek grabowy',
+        'Koźlarz topolowy', 'Koźlarz sosnowy', 'Podgrzybek czerwonawy', 'Podgrzybek obciętozarodnikowy',
+        'Maślak wejmutkowy', 'Maślak lepki', 'Gołąbek wyborny', 'Gołąbek zielonawy',
+        'Gołąbek grynszpanowy', 'Gołąbek oliwkowozielony', 'Mleczaj świerkowy', 'Mleczaj jodłowy',
+        'Mleczajowiec smaczny', 'Pieczarka polna', 'Pieczarka leśna', 'Pieczarka biaława',
+        'Twardzioszek przydrożny', 'Płachetka zwyczajna', 'Kolczak obłączasty', 'Pieprznik trąbkowy',
+        'Purchawka chropowata', 'Siedzuń sosnowy', 'Czernidłak kołpakowaty', 'Gąska niekształtna',
+        'Gęśnica wiosenna', 'Uszak bzowy'
       ];
     }
     function validAnswers(a, ids) {
@@ -52,7 +60,7 @@ service cloud.firestore {
         && (!('scoringVersion' in request.resource.data) || request.resource.data.scoringVersion == 2)
         && request.resource.data.get('gameMode', 'classic') in ['classic', 'coupons']
         && (request.resource.data.get('gameMode', 'classic') == 'coupons'
-          ? request.resource.data.couponVersion == 1 : !('couponVersion' in request.resource.data))
+          ? request.resource.data.couponVersion == 2 : !('couponVersion' in request.resource.data))
         && request.resource.data.name is string && request.resource.data.name.size() >= 3 && request.resource.data.name.size() <= 60
         && request.resource.data.limit is int && request.resource.data.limit >= 2 && request.resource.data.limit <= 30
         && request.resource.data.startsAt == request.time
@@ -164,7 +172,7 @@ service cloud.firestore {
 
         function openCoupons() {
           return member(id) && user == uid() && room(id).get('gameMode', 'classic') == 'coupons'
-            && room(id).couponVersion == 1 && room(id).phase == 'predicting'
+            && room(id).couponVersion in [1, 2] && room(id).phase == 'predicting'
             && afterRoom(id).phase == 'predicting' && !(uid() in afterRoom(id).readyIds)
             && request.resource.data.keys().hasAll(['spent', 'slips'])
             && request.resource.data.keys().hasOnly(['spent', 'slips'])
@@ -186,9 +194,19 @@ service cloud.firestore {
             && picks is map && picks.keys().size() >= 1
             && picks.keys().hasOnly(['winner', 'own', 'total', 'species'])
             && (!('winner' in picks) || picks.winner in room(id).memberIds)
-            && (!('own' in picks) || picks.own in ['over5', 'under5', 'over10', 'under10', 'over20', 'under20'])
-            && (!('total' in picks) || picks.total in ['over20', 'under20', 'over50', 'under50', 'over100', 'under100'])
+            && (room(id).couponVersion == 1 ? legacyPicks(picks) : balancedPicks(picks))
             && (!('species' in picks) || species(picks.species));
+        }
+        function legacyPicks(picks) {
+          return (!('own' in picks) || picks.own in ['over5', 'under5', 'over10', 'under10', 'over20', 'under20'])
+            && (!('total' in picks) || picks.total in ['over20', 'under20', 'over50', 'under50', 'over100', 'under100']);
+        }
+        function balancedPicks(picks) {
+          return !(('own' in picks) && ('total' in picks))
+            && (!('winner' in picks) || room(id).memberIds.size() >= 2)
+            && (!('own' in picks) || picks.own in ['over5', 'over10', 'over20'])
+            && (!('total' in picks) || (room(id).memberIds.size() >= 2
+              && picks.total in ['over-low', 'under-low', 'over-mid', 'under-mid', 'over-high', 'under-high']));
         }
       }
       match /harvests/{hid} {

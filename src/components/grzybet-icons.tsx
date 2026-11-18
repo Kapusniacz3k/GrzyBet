@@ -15,6 +15,39 @@ function IconCanvas({ size, children }: { size: number; children: ReactNode }) {
   </Svg>;
 }
 
+// Lucide outline geometry; copyright and ISC/Feather MIT notices:
+// assets/branding/LUCIDE-LICENSE.txt.
+function OutlineCanvas({ size, color, children }: IconProps & { size: number; children: ReactNode }) {
+  return <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color}
+    strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round" {...decorativeProps} pointerEvents="none">
+    {children}
+  </Svg>;
+}
+
+export function SproutIcon({ size = 20, color = '#999999' }: IconProps) {
+  return <OutlineCanvas size={size} color={color}>
+    <Path d="M14 9.536V7a4 4 0 0 1 4-4h1.5a.5.5 0 0 1 .5.5V5a4 4 0 0 1-4 4 4 4 0 0 0-4 4c0 2 1 3 1 5a5 5 0 0 1-1 3" />
+    <Path d="M4 9a5 5 0 0 1 8 4 5 5 0 0 1-8-4M5 21h14" />
+  </OutlineCanvas>;
+}
+
+export function InfoIcon({ size = 18, color = '#999999' }: IconProps) {
+  return <OutlineCanvas size={size} color={color}>
+    <Circle cx={12} cy={12} r={10} /><Path d="M12 16v-4M12 8h.01" />
+  </OutlineCanvas>;
+}
+
+export function PeopleIcon({ size = 16, color = '#999999' }: IconProps) {
+  return <OutlineCanvas size={size} color={color}>
+    <Path d="M18 21a8 8 0 0 0-16 0" /><Circle cx={10} cy={8} r={5} />
+    <Path d="M22 20c0-3.37-2-6.5-4-8a5 5 0 0 0-.45-8.3" />
+  </OutlineCanvas>;
+}
+
+export function HashIcon({ size = 20, color = '#999999' }: IconProps) {
+  return <OutlineCanvas size={size} color={color}><Path d="M4 9h16M4 15h16M10 3L8 21M16 3l-2 18" /></OutlineCanvas>;
+}
+
 export function MushroomIcon({ size = 28, color = '#238C45', stemColor = '#FFFFFF', spotColor = stemColor, stemOutline }: IconProps & {
   stemColor?: string; spotColor?: string; stemOutline?: string;
 }) {
@@ -36,21 +69,15 @@ export function LockIcon({ size = 48, color = '#777777' }: IconProps) {
 }
 
 export function GrzybdexIcon({ size = 28, color = '#888888' }: IconProps) {
-  return <IconCanvas size={size}>
-    <G stroke={color} strokeWidth={6.4}>
-      <Path d="M50 18L18 13Q4 11 4 25V74Q4 84 17 86L50 91L83 86Q96 84 96 74V25Q96 11 82 13L50 18V91" />
-      <Path d="M18 34H37M18 49H37M63 34H82M63 49H82" strokeWidth={5.4} />
-    </G>
-  </IconCanvas>;
+  return <OutlineCanvas size={size} color={color}>
+    <Path d="M12 5v16M20.001 19A2 2 0 0022 17V5a2 2 0 00-1.999-2L16 3.002A5 5 0 0012 5a5 5 0 00-4-2H4a2 2 0 00-2 2v12a2 2 0 001.999 2H8a5 5 0 014 2 5 5 0 014-2z" />
+  </OutlineCanvas>;
 }
 
 export function ProfileIcon({ size = 28, color = '#FFFFFF' }: IconProps) {
-  return <IconCanvas size={size}>
-    <G stroke={color} strokeWidth={6.4}>
-      <Circle cx={50} cy={22} r={13.8} />
-      <Path d="M44 55.2H56A27.8 27.8 0 0 1 83.8 83A7.8 7.8 0 0 1 76 90.8H24A7.8 7.8 0 0 1 16.2 83A27.8 27.8 0 0 1 44 55.2Z" />
-    </G>
-  </IconCanvas>;
+  return <OutlineCanvas size={size} color={color}>
+    <Circle cx={12} cy={8} r={5} /><Path d="M20 21a8 8 0 0 0-16 0" />
+  </OutlineCanvas>;
 }
 
 export function SettingsIcon({ size = 26, color = '#FFFFFF' }: IconProps) {

@@ -35,8 +35,9 @@ function DeleteAccountModal({ account, onClose }: { account: Account; onClose: (
   const [submitting, setSubmitting] = useState(false);
   const inFlight = useRef(false);
   const busy = account.busy || submitting;
+  const deletionBlockedReason = account.deletionBlockedReason;
   const seconds = deletionSecondsRemaining(openedAt, now);
-  const allowed = canDeleteAccount(openedAt, now, confirmed, busy) && (!needsPassword || password.length > 0);
+  const allowed = !deletionBlockedReason && canDeleteAccount(openedAt, now, confirmed, busy) && (!needsPassword || password.length > 0);
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -69,7 +70,8 @@ function DeleteAccountModal({ account, onClose }: { account: Account; onClose: (
             <Text accessibilityRole="header" style={styles.title}>{account.isGuest ? 'Usunąć profil gościa?' : 'Usunąć konto?'}</Text>
             {!!account.email && <Text selectable style={styles.email}>{account.email}</Text>}
             <Copy>Ta operacja jest nieodwracalna. Stracisz dostęp do tego profilu, swoich wypraw, odznak i Grzybedexu.</Copy>
-            <Text style={styles.note}>Wspólne wyprawy, wyniki i zgłoszone zdjęcia pozostaną u uczestników. Przed usunięciem zakończ wyprawy, które prowadzisz.</Text>
+            <Text style={styles.note}>Wspólne wyprawy, wyniki i zgłoszone zdjęcia pozostaną u uczestników. Konto można usunąć po zakończeniu wszystkich wypraw, w których uczestniczysz.</Text>
+            {!!deletionBlockedReason && <Message text={deletionBlockedReason} />}
             <Pressable accessibilityRole="checkbox" aria-checked={confirmed} accessibilityState={{ checked: confirmed, disabled: busy }}
               disabled={busy} onPress={() => setConfirmed(value => !value)} style={styles.confirmation}>
               <View style={[styles.checkbox, confirmed && styles.checked]}>{confirmed && <CheckIcon size={15} color={colors.onPrimary} />}</View>
@@ -78,7 +80,8 @@ function DeleteAccountModal({ account, onClose }: { account: Account; onClose: (
             {needsPassword && <Field label="Potwierdź hasło" value={password} onChangeText={setPassword} secureTextEntry
               autoComplete="current-password" autoCapitalize="none" autoCorrect={false} editable={!busy} onSubmitEditing={() => { void remove(); }} />}
             <Message text={error} />
-            <Text accessibilityLiveRegion="polite" style={styles.countdown}>{seconds > 0 ? `Możesz potwierdzić usunięcie za ${seconds} s.`
+            <Text accessibilityLiveRegion="polite" style={styles.countdown}>{deletionBlockedReason ? 'Usuwanie konta jest zablokowane do zakończenia aktywnych wypraw.'
+              : seconds > 0 ? `Możesz potwierdzić usunięcie za ${seconds} s.`
               : !confirmed ? 'Zaznacz pole potwierdzenia, aby kontynuować.'
                 : needsPassword && !password ? 'Wpisz hasło, aby potwierdzić usunięcie.' : 'Możesz teraz potwierdzić usunięcie.'}</Text>
           </ScrollView>

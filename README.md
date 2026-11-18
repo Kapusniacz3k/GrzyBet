@@ -4,7 +4,7 @@ Mobilna aplikacja Expo SDK 58 / React Native / TypeScript do typowania wyników 
 
 ## Uruchomienie na Windows
 
-Wymagany Node.js 24 lub nowszy (testy uruchamiają pliki TypeScript bez dodatkowego kompilatora).
+Zalecany Node.js 24 LTS, zgodnie z wersją używaną do budowania APK. Testy uruchamiają pliki TypeScript bez dodatkowego kompilatora.
 
 - Zainstaluj zależności: npm install
 - Uruchom: npx.cmd expo start --go --clear
@@ -19,30 +19,34 @@ Własna instalowalna aplikacja wymaga development build / EAS Build; polskie opi
 
 Profil `preview` w `eas.json` tworzy podpisany plik APK do bezpośredniej instalacji, bez Expo Go i bez uruchamiania komputera. Identyfikator Androida: `pl.grzybet.app`. Numer builda jest zarządzany przez Expo i rośnie automatycznie. Profil zawiera publiczną konfigurację klienta Firebase `grzybet`, tak aby wspólna gra działała także bez lokalnego `.env.local`.
 
-1. Zaloguj się na własne konto Expo: `npx.cmd --yes eas-cli@latest login`.
-2. Przy pierwszym uruchomieniu połącz projekt z kontem: `npx.cmd --yes eas-cli@latest init`.
+Projekt jest już połączony z kontem Expo `quberq` i identyfikatorem zapisanym w `app.json`. Do budowania aktualizacji użyj tego konta albo konta z dostępem do istniejącego projektu. Nie trzeba ponownie uruchamiać `eas init` ani zmieniać właściciela projektu.
+
+1. Zaloguj się na konto mające dostęp do projektu: `npx.cmd --yes eas-cli@latest login`.
+2. Sprawdź zalogowane konto: `npx.cmd --yes eas-cli@latest whoami`.
 3. Uruchom budowanie: `npx.cmd --yes eas-cli@latest build --platform android --profile preview`.
 4. Otwórz otrzymany link na Androidzie, pobierz APK i zainstaluj. Tę samą wersję możesz zainstalować na drugim telefonie.
 
-Przy pierwszym budowaniu wybierz wygenerowanie klucza podpisującego przez Expo. Zachowaj ten projekt i klucz przy następnych wersjach, aby dało się aktualizować aplikację z zachowaniem jej danych. Instalowana aplikacja ma osobną pamięć niż Expo Go, więc za pierwszym razem poprosi o nick i utworzy własne konto gościa.
+Przy kolejnych buildach zachowaj istniejący projekt i klucz podpisujący, aby aktualizować aplikację z zachowaniem jej danych. Osoba bez uprawnień do konta `quberq` może uruchomić źródła lokalnie w Expo Go albo zainstalować przekazany APK; nie musi przejmować projektu Expo. Osobne wydanie na innym koncie wymaga świadomego utworzenia własnego projektu i ustalenia konfiguracji Firebase oraz podpisywania. Instalowana aplikacja ma osobną pamięć niż Expo Go, więc za pierwszym razem poprosi o nick i utworzy własne konto gościa.
 
 `.easignore` wyłącza z paczki m.in. lokalne pliki środowiskowe, pamięć podręczną, testy i klucze podpisujące. Publiczne parametry Firebase w `eas.json` nie są danymi administratora; dostęp do danych nadal ograniczają reguły Firestore i Storage.
 
 ## Co działa
 
 - Jasny i ciemny motyw wybierane w Ustawienia → Wygląd aplikacji. Wybór zapisuje się na urządzeniu razem z podpowiedziami i obejmuje ekrany, formularze, nawigację, instrukcję oraz łączenie z aplikacją.
+- Interfejs używa grafitu, ciepłej bieli i piaskowego akcentu. Zieleń wyróżnia aktywną zakładkę dolnej nawigacji, „Bet” w logo interfejsu i główny przycisk ekranu startowego. Pozostałe przyciski, zaznaczenia i tła są neutralne; rangi zachowują swoje kolory w szczegółach grzyba. Przyciski, pola i karty mają wspólne zaokrąglenia i spokojniejszą typografię.
 - Jeśli na Pixelu jasny motyw w Expo Go pozostaje ciemny, sprawdź systemowy rozszerzony ciemny motyw. Wyłącz go dla Expo Go lub wybierz Standardowy; rozszerzona opcja przetwarza kolory niezależnie od palety aplikacji. [Instrukcja Google](https://support.google.com/accessibility/android/answer/6151800?hl=pl).
 - Krótkie animacje wejścia ekranów i kafelków, sprężysta reakcja przycisków, płynne przejścia, rozwijanie instrukcji i historii oraz subtelny ruch grzyba podczas łączenia. Animacje respektują systemowe ograniczenie ruchu.
 - Ikony w interfejsie są rysowane przez `react-native-svg`: grzyb, Grzybedex, profil, kłódka, ustawienia, pomoc, historia, odznaki i symbole przycisków. Wspólny zestaw jest w `src/components/grzybet-icons.tsx`; rozmiary i kolory dopasowują się do miejsca użycia oraz motywu. Dekoracyjne ikony nie przechwytują dotyku ani nie powielają etykiet przycisków w czytniku ekranu. Istniejący APK wymaga ponownego zbudowania, aby zawierał nową bibliotekę; w Expo Go wystarczy odświeżyć projekt.
 - Prosty ekran łączenia i wczytywania: logo GrzyBet, grzyb bez otaczających okręgów oraz „Łączenie z aplikacją…” ze wskaźnikiem ładowania. Przy błędzie można ponowić próbę.
-- Ikona aplikacji to biało-zielony napis GrzyBet na ciemnym tle, w stylu nagłówka ekranu głównego. Przygotowane są też warstwy adaptacyjna i monochromatyczna Androida, ikona iOS i favicon. Systemowy ekran startowy ma ten sam grzyb bez okręgów, z jasnym i ciemnym tłem. Ikona i systemowy ekran startowy wymagają nowego builda preview/produkcyjnego; Expo Go nie odwzorowuje ich w pełni. Źródła wektorowe i opis plików: assets/branding/README.md.
-- Ekran startowy z dużym grzybem oraz przyciskami Stwórz pokój i Dołącz do pokoju.
+- Ikona aplikacji to napis GrzyBet w ciepłej bieli na grafitowym tle. Przygotowane są też warstwy adaptacyjna i monochromatyczna Androida, ikona iOS i favicon. Systemowy ekran startowy ma ten sam grzyb bez okręgów, z jasnym i ciemnym tłem. Ikona i systemowy ekran startowy wymagają nowego builda preview/produkcyjnego; Expo Go nie odwzorowuje ich w pełni. Źródła wektorowe i opis plików: assets/branding/README.md.
+- Ekran startowy wita gracza po nicku („Witaj, …”) i pokazuje najnowszą własną aktywną wyprawę, skróty Stwórz pokój / Dołącz kodem, ostatnią zakończoną wyprawę i pasek kolekcji. Ostatni wynik rozróżnia punkty klasycznego typowania i saldo kuponów. Brak wypraw pokazuje prawdziwy pusty stan; postęp kolekcji liczy tylko własne zatwierdzone znaleziska.
 - Przycisk „Jak to działa?” otwiera instrukcję w oknie z rozwijanymi rozdziałami i zasadami punktacji.
-- Wspólny dolny pasek zawiera Start, Grzybedex i Profil. Jest widoczny także w profilu, kartach grzybów i pokojach, a w ustawieniach znika.
-- Grzybedex ma 20 gatunków, m.in. borowiki, podgrzybki, maślaki, koźlarze, rydza, kanię, opieńkę, lejkowca i gołąbka. Każdy ma osobny kafelek, zdjęcie, notatkę i postęp rang. Karta pokazuje zdjęcie, łączny własny zbiór, rekord jednej wyprawy i liczbę wypraw ze znaleziskiem. Statystyki obejmują tylko własne zatwierdzone sztuki z rozpoczętych poszukiwań i zakończonych wypraw.
+- Wspólny dolny pasek zawiera Start z roślinką, Grzybedex z konturową książką i Profil z konturem postaci. Aktywna pozycja ma delikatne zielone podświetlenie. Pasek jest widoczny także w profilu, kartach grzybów i pokojach, a w ustawieniach znika.
+- Grzybedex ma 50 gatunków, m.in. borowiki, podgrzybki, maślaki, koźlarze, rydze, boczniaki, pieczarki, gołąbki, kanię, siedziunia i uszaka. Każdy ma osobny kafelek, zdjęcie, notatkę i postęp rang. Karta pokazuje zdjęcie, łączny własny zbiór, rekord jednej wyprawy i liczbę wypraw ze znaleziskiem. Statystyki obejmują tylko własne zatwierdzone sztuki z rozpoczętych poszukiwań i zakończonych wypraw. Ta sama lista działa w typowaniu, kuponach i zgłoszeniach zbiorów; wyszukiwanie obsługuje nazwy potoczne i łacińskie, także bez polskich znaków.
 - Gatunek w typowaniu i zgłoszeniu zbioru wybiera się z rozwijanej listy z wyszukiwaniem. Wyszukiwanie uwzględnia nazwy potoczne, naukowe i zapis bez polskich znaków. Dotychczasowe klucze Borowik, Podgrzybek, Maślak i Kurka pozostają zgodne ze starszymi zapisami.
 - Nieodkryte gatunki mają szarą kłódkę zamiast zdjęcia. Pierwsza zatwierdzona sztuka odblokowuje zdjęcie i krótką notatkę z podanym źródłem. Karta pokazuje obecną rangę i liczbę sztuk do kolejnej, bez listy wszystkich rang.
 - Nagłówek Grzybedexu i podsumowanie gatunków, sztuk oraz odznak są przypięte u góry; przewija się tylko lista kafelków. Mniejszy nagłówek, podsumowanie i kafelki pozwalają pokazać dwa pełne rzędy grzybów na ekranie telefonu.
+- Grzybedex ma filtry Wszystkie, Odkryte i Nieodkryte. Kafelki pokazują liczbę sztuk, obecną rangę i pasek postępu do następnej; nieodkryte gatunki nadal mają szarą kłódkę. Filtry nie zmieniają całkowitych statystyk kolekcji.
 - Odznaki zdobywa się osobno dla każdego gatunku: Drewno 1, Brąz 10, Srebro 50, Złoto 100, Diament 250, Grzybiarz 1000 sztuk. Postęp jest wyliczany z aktualnych zgłoszeń, bez osobnego zapisu liczników. Zdjęcia są dołączone do aplikacji; autorzy i poszczególne licencje są w assets/images/grzybdex/CREDITS.md oraz w odblokowanej karcie gatunku.
 - Ustawienia są dostępne pod ikoną w prawym górnym rogu.
 - Profil ma prosty nagłówek z inicjałem i nickiem, wspólną neutralną kartę statystyk, domyślnie zwiniętą historię i lekką listę aktywnych kuponów. Kolory ograniczono do tła, tekstu, subtelnych linii i zielonego akcentu. Ustawienia są pod ikoną w nagłówku.
@@ -57,7 +61,7 @@ Przy pierwszym budowaniu wybierz wygenerowanie klucza podpisującego przez Expo.
 - Każdy odpowiada kolejno na cztery pytania, we własnym tempie. Postęp zapisuje się po każdej odpowiedzi i wraca po ponownym uruchomieniu.
 - Po czwartym pytaniu uczestnik zatwierdza podsumowanie. Wcześniej może rozpocząć odpowiadanie od nowa; po zatwierdzeniu typów nie można edytować.
 - W lobby widać gotowość oraz postęp każdego uczestnika. Dopiero gdy wszyscy zatwierdzą odpowiedzi, organizator może nacisnąć Wystartuj poszukiwania.
-- Po wystartowaniu poszukiwań dostępna jest tylko zakładka Zbiory. Wyniki pojawiają się automatycznie po zakończeniu grzybobrania przez organizatora; wtedy można też przeglądać zapisane zbiory.
+- Po wystartowaniu poszukiwań dostępne są tylko Zbiory. Po zakończeniu grzybobrania przez organizatora zostają dwie zakładki: Zbiory i Wyniki; domyślnie otwierają się Wyniki. W samych Wynikach nie ma dodatkowego przełącznika Typowanie/Zbiory ani Saldo/Zebrane sztuki. Podsumowanie liczbowe, lista uczestników i rozwijane rozliczenia kuponów pozostają na jednym ekranie.
 - Zgłoszenie zbioru: gatunek, liczba sztuk, obowiązkowe zdjęcie z galerii lub aparatu, opcjonalna notatka.
 - Zatwierdzanie i odrzucanie przez organizatora z powodem odrzucenia.
 - Zakończenie dopiero po rozpatrzeniu wszystkich zgłoszeń.
@@ -72,10 +76,12 @@ Przy pierwszym budowaniu wybierz wygenerowanie klucza podpisującego przez Expo.
 Organizator wybiera tryb podczas tworzenia pokoju. Starsze pokoje pozostają w trybie Typowanie.
 
 - **Typowanie**: cztery pytania, opcjonalny pewniak ×2 i punktacja opisana poniżej.
-- **Kupony**: nowe 10 wirtualnych grzybków dla każdego na każdą wyprawę. Po otwarciu zakładów widać jedną stronę oferty: zwycięzca, własny zbiór, zbiór ekipy i najczęstszy gatunek. Kupon łączy 1–4 typy (jeden na kategorię), kursy się mnożą. Stawka to pełne 1–10 grzybków; suma stawek nie przekracza 10. Pasek stawki i możliwej wygranej pozostaje nad dolną nawigacją podczas wybierania typów.
-- Kursy wersji 1 są z góry ustalone. Kurs zwycięzcy wynosi `max(1.50, liczba graczy × 1.50)`, gatunku `5.00`, a linie liczbowe mają kursy z `couponLines`. To mechanika punktowa, bez pieniędzy i zewnętrznego bukmachera. Kurs łączny zaokrąglamy do dwóch miejsc, rozliczenie prowadzimy w setnych grzybka.
+- **Kupony**: nowe 10 wirtualnych grzybków dla każdego na każdą wyprawę. Po otwarciu zakładów widać jedną stronę oferty: zwycięzca, własny zbiór, zbiór ekipy i najczęstszy gatunek. Nowy kupon łączy 1–3 typy (jeden na kategorię), kursy się mnożą. Własny zbiór i wynik ekipy są powiązane, więc trzeba stawiać je na oddzielnych kuponach; wybór jednego zastępuje drugi w formularzu. Stawka to pełne 1–10 grzybków; suma stawek nie przekracza 10. Pasek stawki i możliwej wygranej pozostaje nad dolną nawigacją podczas wybierania typów.
+- Nowe pokoje używają `couponVersion: 2`. Kurs zwycięzcy wynosi `liczba graczy × 0.90` (np. 1.80 dla dwóch, 3.60 dla czterech). Własny zbiór ma tylko cele powyżej 5.5 / 10.5 / 20.5, bez nagradzania celowego niezbierania. Progi ekipy to `5 × liczba graczy + 0.5`, `10 × liczba graczy + 0.5`, `20 × liczba graczy + 0.5`; zapisujemy je jako tier `over-low` / `under-low`, `over-mid` / `under-mid`, `over-high` / `under-high`. Zwycięzca i wynik ekipy wymagają co najmniej dwóch graczy.
+- Kursy są ustalone na czas pokoju; gatunki zachowują orientacyjny kurs `5.00` do późniejszego strojenia na historii wypraw. To mechanika punktowa, bez pieniędzy i zewnętrznego bukmachera. Kurs łączny zaokrąglamy do dwóch miejsc, rozliczenie prowadzimy w setnych grzybka. Kursy i progi nie są statystyczną prognozą zbiorów.
 - Każdy sam kończy stawianie. Można zostać z niewydanym saldem lub bez kuponów. Po gotowości kuponów nie można już dopisywać; gospodarz rozpoczyna poszukiwania dopiero po gotowości wszystkich.
-- W trakcie zbiorów nadal widać tylko Zbiory. Dopiero gospodarz kończy wyprawę i odsłania wyniki: każdy typ kuponu, trafienie, kurs, stawkę, wygraną i bilans. Kupon wygrywa, gdy trafione są wszystkie typy. Wygrana zawiera stawkę. Przy remisie trafia każdy wspólny zwycięzca lub najczęstszy gatunek; przy zerowych zbiorach nie ma zwycięzcy ani gatunku.
+- W trakcie zbiorów nadal widać tylko Zbiory. Dopiero gospodarz kończy wyprawę i odsłania wyniki: każdy typ kuponu, trafienie, kurs, stawkę, wygraną i bilans. Kupon wygrywa, gdy trafione są wszystkie typy. Wygrana zawiera stawkę. W wersji 2 remis dzieli wygraną przez liczbę współzwycięzców i/lub najczęstszych gatunków, których dotyczy kupon. Dwa remisy mnożą dzielniki. Ostateczną wygraną zaokrąglamy w dół do 0.01 grzybka. Przy zerowych zbiorach nie ma zwycięzcy ani gatunku.
+- Starsze pokoje `couponVersion: 1` zachowują dawną ofertę: 1–4 typy, kurs zwycięzcy `max(1.50, liczba graczy × 1.50)`, stare stałe progi i pełne wygrane przy remisach. Nie zmieniamy wersji istniejącego pokoju ani rozliczenia zapisanych kuponów.
 - Ranking Kuponów porównuje stan końcowy: `10 − postawione stawki + wygrane ze stawką`. Kupony innych graczy są prywatne do zakończenia. Historia pokazuje oba tryby, statystyka punktów zachowuje wyłącznie klasyczne typowanie, a zbiory z obu trybów zasilają Grzybedex.
 - Zapisy online dopisują kupon i odejmują saldo atomowo. Reguły blokują podmianę historii, stawki ponad saldo, własne kursy, edycję trybu i stawianie po gotowości lub starcie zbiorów. Testy tych zapisów używają emulatorów `demo-grzybet`.
 
@@ -91,7 +97,7 @@ Do wyników wliczamy wyłącznie zatwierdzone zbiory.
 - „Jak liczymy punkty?” to dyskretny przycisk z pytajnikiem, podobny do pomocy na ekranie głównym — dotknięcie rozwija lub chowa zasady. Nazwa pokoju jest ukryta przez cały etap typowania.
 - Maksymalnie 450 pkt przy pewniaku na jednym z pytań za 100 pkt; przy pewniaku na gatunku maksymalnie 400 pkt, bez pewniaka 350 pkt.
 - Nowe pokoje zapisują `scoringVersion: 2`. Starsze pokoje bez tej wersji zachowują pierwotne zasady (własny zbiór 100/70/40 pkt, ekipa tylko dokładnie), co chroni wyniki historii. Reguły Firestore dopuszczają wyłącznie cztery zapisane odpowiedzi i co najwyżej jeden poprawny klucz `boost`; nie można dopisać mnożnika ani podmienić odpowiedzi podczas zatwierdzania.
-- Po zakończeniu wyniki domyślnie otwierają typowanie z rozwiniętym własnym kuponem: typ, rzeczywisty wynik, różnica liczbowa, punkty bazowe i działanie ×2. Pozostałe kupony rozwija się osobno; przed zakończeniem te rozliczenia są ukryte.
+- Po zakończeniu otwiera się zakładka Wyniki z własnym podsumowaniem i listą wyników ekipy. Kupony są domyślnie zwinięte; dotknięcie wiersza uczestnika pokazuje typ, rzeczywisty wynik, różnicę liczbową, punkty bazowe i działanie ×2. Przed zakończeniem te rozliczenia są ukryte.
 - Remisy mają wspólne miejsce. Każdy zwycięzca i każdy najczęstszy gatunek przy remisie zalicza trafienie.
 - Przy zerowych zbiorach nie ma zwycięzcy ani najczęstszego gatunku; liczbowe typy na zero mogą zdobyć punkty.
 - Kupon bez zapisanych typów: 0 pkt.
@@ -109,7 +115,7 @@ Do wyników wliczamy wyłącznie zatwierdzone zbiory.
 8. W Zbiorach wybierz Borowik, 12 sztuk i dołącz zdjęcie.
 9. Wyślij zgłoszenie. Wynik pozostaje 0 do zatwierdzenia. Oczekujące zgłoszenie blokuje zakończenie.
 10. Zatwierdź zgłoszenie i zakończ wyprawę w panelu organizatora pod zbiorami. U wszystkich graczy automatycznie otworzą się wyniki.
-11. W Wynikach zobacz 12 grzybów i 450 pkt z rozpisanym kuponem; w Profilu historię i własne statystyki.
+11. W Wynikach zobacz 12 grzybów i 450 pkt. Rozwiń swój wiersz, aby obejrzeć rozliczenie kuponu. Obok Wyników dostępna jest zakładka Zbiory; w Profilu znajdziesz historię i własne statystyki.
 
 Przykładowe lobby w Gorcach: GRZ482. Dołączanie do drugiego przykładowego pokoju: LAS219.
 Przykładowi uczestnicy nie odpowiadają automatycznie. W pokoju z kilkoma osobami przycisk poszukiwań pozostaje zablokowany, dopóki wszyscy nie potwierdzą typów.
@@ -157,3 +163,29 @@ Automatyczne testy obejmują etapy i uprawnienia, walidację, punktację i remis
 UI sprawdzono w przeglądarce także na szerokości 390 px. Aparat, uprawnienia i wybór zdjęcia na fizycznym telefonie wymagają sprawdzenia na urządzeniu.
 
 Kod funkcjonalności: src/features/. Trasy Expo Router: src/app/.
+
+## Zabezpieczenia zdjęć i usuwania konta
+
+- URI pobranego zdjęcia trafia do interfejsu dopiero po zakończeniu zapisu pliku. Nieudany zapis usuwa niepełną kopię; każda operacja używa osobnej nazwy cache. Wynik pobierania z poprzedniej sesji jest zwalniany i nie trafia do nowego profilu.
+- Konto można usunąć dopiero po zakończeniu wszystkich wypraw, w których uczestniczy użytkownik — również gdy nie jest ich organizatorem. Okno pokazuje powód blokady. Przed usunięciem aplikacja dodatkowo sprawdza członkostwo bezpośrednio na serwerze; brak sieci lub uprawnień nie pozwala zatwierdzić operacji na podstawie starej pamięci danych. W pozostałych przypadkach nadal obowiązuje pięć sekund i pole potwierdzenia.
+- Testy regresji obejmują opóźniony i odrzucony zapis zdjęcia, bezpieczne zwalnianie cache, obie role gracza na wszystkich aktywnych etapach oraz wyprawę utworzoną na drugim urządzeniu po wcześniejszym pustym odczycie.
+
+## Oddanie projektu i push do GitHub
+
+Pushuj po każdym sprawdzonym etapie prac. Przed oznaczeniem wersji do oddania uruchom kontrolę kodu z powyższej sekcji i sprawdź pełną wyprawę na dwóch telefonach. Do repozytorium mają trafić wszystkie nowe pliki źródłowe, zdjęcia, licencje i testy — sam zapis zmian w już śledzonych plikach ich nie dodaje.
+
+Po sprawdzeniu listy zmian, w repozytorium z ustawionym zdalnym `origin`:
+
+```powershell
+git status --short
+git diff
+git add -u
+git add src assets tests scripts firebase
+git diff --cached --stat
+git commit -m "Przygotuj GrzyBet do oddania"
+git push -u origin HEAD
+```
+
+`git add -u` zbiera zmiany w śledzonych plikach, a następne polecenie dodaje także nowe pliki w katalogach aplikacji. Przed commitem przejrzyj zestaw zmian; lokalna konfiguracja `.env.local`, klucze podpisujące i pliki administratora pozostają poza repozytorium.
+
+Po zapisie końcowego commita zbuduj z tej samej wersji świeży APK profilem `preview` i sprawdź instalację oraz wspólną grę. `expo export` sprawdza paczkę aplikacji, ale nie tworzy instalowalnego APK. Katalog `dist/` jest ignorowany przez Git: APK udostępnij osobno, np. jako plik wydania GitHub Releases albo link do buildu Expo. W opisie oddania podaj identyfikator commita, numer buildu, link do APK oraz sumę SHA-256 pobranego pliku. Źródła i pliki licencji pozostają w repozytorium.

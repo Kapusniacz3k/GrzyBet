@@ -43,6 +43,9 @@ test('small text, selected controls and badge names remain readable in both them
       }
     }
     assert.ok(contrast(colors.onPrimary, colors.primary) >= 4.5, `${mode}: button text`);
+    assert.ok(contrast(colors.onActionGreen, colors.actionGreen) >= 4.5, `${mode}: home action text`);
+    assert.ok(contrast(colors.navigationActive, colors.navigationSurface) >= 4.5, `${mode}: selected navigation icon`);
+    assert.ok(contrast(colors.navigationActive, colors.background) >= 4.5, `${mode}: selected navigation label`);
     for (const badge of Object.values(colors.badges)) {
       assert.ok(contrast(badge, colors.surface) >= 4.5, `${mode}: badge ${badge}`);
       assert.ok(contrast(badge, colors.accentSoft) >= 4.5, `${mode}: current badge ${badge}`);

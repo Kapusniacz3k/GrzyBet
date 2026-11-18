@@ -7,6 +7,8 @@ import { firebaseServices } from '../services/firebase';
 import { CloudRepository, readHarvestPhoto, submitHarvestWithPhoto } from '../services/cloud-repository';
 import { cachedPhoto, photoForUpload } from '../services/cloud-photos';
 import { accountError, registerGuestAccount, removeAccount, resetAccountPassword, signInAccount, signOutAccount } from '../services/email-auth';
+import { assertAccountDeletionAllowed } from '../services/account-removal';
+import { activeTripDeletionMessage, hasActiveTrips } from './account-deletion';
 import type { Room } from './domain';
 import { GameContext, type Game } from './game-context';
 import { AccountContext, useAccount, type Account } from './account-context';
@@ -119,9 +121,11 @@ export function OnlineGameProvider({ children }: { children: ReactNode }) {
             const path = harvest.photoUri;
             if (!downloading.has(path)) {
               downloading.add(path);
-              void readHarvestPhoto(services.storage, path).then(({ bytes, type }) => {
+              void readHarvestPhoto(services.storage, path).then(async ({ bytes, type }) => {
                 if (!active || services.auth.currentUser?.uid !== user.uid) return;
-                photos.set(path, cachedPhoto(harvest.id, bytes, type));
+                const photo = await cachedPhoto(harvest.id, bytes, type);
+                if (!active || services.auth.currentUser?.uid !== user.uid) { photo.release(); return; }
+                photos.set(path, photo);
                 publish();
               }).catch(error => { downloading.delete(path); fail(error); });
             }
@@ -171,11 +175,16 @@ export function OnlineGameProvider({ children }: { children: ReactNode }) {
   if (!session || !loaded) return <ConnectionScreen stage={session ? 'syncing' : 'connecting'} error={error} onRetry={retry} />;
   const account: Account = {
     ...identity, busy, hasGuestProgress: identity.isGuest && rooms.some(room => room.joined),
+    deletionBlockedReason: hasActiveTrips(rooms, session.user.uid) ? activeTripDeletionMessage : undefined,
     register: (email, password, confirmation) => accountOperation(auth => registerGuestAccount(auth, email, password, confirmation)),
     signIn: (email, password) => accountOperation(async auth => { await signInAccount(auth, email, password); setAccountNotice(''); }),
     resetPassword: email => accountOperation(auth => resetAccountPassword(auth, email)),
     signOut: () => accountOperation(signOutAccount),
     remove: password => accountOperation(async auth => {
+      const uid = auth.currentUser?.uid;
+      if (!uid) throw new Error('Najpierw zaloguj się na konto, które chcesz usunąć.');
+      await assertAccountDeletionAllowed(session.services.db, uid);
+      if (auth.currentUser?.uid !== uid) throw new Error('Konto się zmieniło. Poczekaj na synchronizację.');
       await removeAccount(auth, password);
       setAccountNotice('Konto zostało usunięte. Możesz rozpocząć grę z nowym profilem gościa lub zalogować się na inne konto.');
     }),

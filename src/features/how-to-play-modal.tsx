@@ -20,8 +20,8 @@ const chapters = [
     title: 'Tryb Kupony',
     paragraphs: [
       'Każdy zaczyna każdą wyprawę z nowymi 10 grzybkami. To punkty w grze. Na wspólnej stronie zakładów wybierasz zwycięzcę, własny zbiór, wynik ekipy lub najczęstszy gatunek.',
-      'Na jednym kuponie możesz połączyć od 1 do 4 typów, po jednym z każdej kategorii. Kursy mnożą się, a wszystkie typy muszą trafić. Podaj pełną stawkę od 1 grzybka. Możesz postawić kilka kuponów w granicach salda.',
-      'Kursy są stałe w tej wyprawie. Wygrana zawiera stawkę. Remis zalicza każdego zwycięzcę i każdy najczęstszy gatunek; przy pustym koszyku nie ma zwycięzcy ani najczęstszego gatunku.',
+      'Na nowym kuponie możesz połączyć od 1 do 3 typów. Własny zbiór i wynik ekipy stawiasz na osobnych kuponach. Dla własnych zbiorów wybierasz tylko cele do przekroczenia, a progi ekipy zależą od liczby uczestników. Zwycięzca i wynik ekipy są dostępne od 2 graczy.',
+      'Kursy mnożą się i są stałe w tej wyprawie. Wszystkie typy muszą trafić. Podaj pełną stawkę od 1 grzybka; możesz postawić kilka kuponów w granicach salda. Wygrana zawiera stawkę. Przy remisie dzielimy ją przez liczbę współzwycięzców i najczęstszych gatunków, których dotyczy kupon. Przy pustym koszyku nie ma zwycięzcy ani najczęstszego gatunku. Starsze wyprawy zachowują swoje zasady.',
       'Gdy skończysz, oznacz gotowość. Możesz zakończyć także bez kuponu. Gospodarz rusza na zbiory dopiero po gotowości całej ekipy. Wyniki i kupony innych graczy odsłaniamy po zakończeniu wyprawy. Wygrywa najwyższy stan końcowy: niewydane grzybki plus wygrane kuponów.',
     ],
   },

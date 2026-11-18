@@ -8,7 +8,7 @@ import {
   answerQuestion, restartAnswers, saveTicket, submitHarvest, transitionRoom,
   type Harvest, type Phase, type QuestionKey, type Room, type RoomCreation, type Ticket,
 } from '../features/domain';
-import { placeCoupon, finishCoupons, type CouponPicks, type CouponWallet } from '../features/coupons';
+import { CURRENT_COUPON_VERSION, placeCoupon, finishCoupons, type CouponPicks, type CouponWallet } from '../features/coupons';
 
 export type CloudRoom = {
   name: string; code: string; startsAt: Timestamp; limit: number; host: string;
@@ -16,7 +16,7 @@ export type CloudRoom = {
   createdAt: Timestamp; finishedAt: Timestamp | null; predictionStartedAt?: Timestamp | null;
   scoringVersion?: 2;
   gameMode?: Room['gameMode'];
-  couponVersion?: 1;
+  couponVersion?: 1 | 2;
 };
 export type CloudHarvest = Omit<Harvest, 'id' | 'photoUri' | 'createdAt'> & { photoPath: string; createdAt: Timestamp };
 export function asRoom(id: string, data: CloudRoom, uid: string): Room {
@@ -56,7 +56,7 @@ export class CloudRepository {
           name: data.name.trim(), code, startsAt: serverTimestamp(), limit: data.limit,
           host: this.uid, memberIds: [this.uid], readyIds: [], phase: 'lobby', pendingCount: 0,
           lastHarvestId: '', createdAt: serverTimestamp(), finishedAt: null, predictionStartedAt: null, scoringVersion: 2,
-          ...(data.gameMode === 'coupons' ? { gameMode: 'coupons', couponVersion: 1 } : {}),
+          ...(data.gameMode === 'coupons' ? { gameMode: 'coupons', couponVersion: CURRENT_COUPON_VERSION } : {}),
         });
         tx.set(codeRef, { roomId: roomRef.id });
         tx.set(doc(roomRef, 'members', this.uid), { name: this.name, progress: 0, joinedAt: serverTimestamp() });
