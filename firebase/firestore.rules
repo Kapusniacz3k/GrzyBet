@@ -27,7 +27,19 @@ service cloud.firestore {
         'Mleczajowiec smaczny', 'Pieczarka polna', 'Pieczarka leśna', 'Pieczarka biaława',
         'Twardzioszek przydrożny', 'Płachetka zwyczajna', 'Kolczak obłączasty', 'Pieprznik trąbkowy',
         'Purchawka chropowata', 'Siedzuń sosnowy', 'Czernidłak kołpakowaty', 'Gąska niekształtna',
-        'Gęśnica wiosenna', 'Uszak bzowy'
+        'Gęśnica wiosenna', 'Uszak bzowy', 'Piaskowiec kasztanowaty', 'Piaskowiec modrzak',
+        'Borowik ciemnobrązowy', 'Maślak rdzawobrązowy', 'Koźlarz różnobarwny', 'Koźlarz świerkowy',
+        'Koźlarz białotrzonowy', 'Koźlarz czarny', 'Suchogrzybek oprószony', 'Suchogrzybek zmienny',
+        'Pieprznik ametystowy', 'Pieprznik blady', 'Kolczak rudawy', 'Opieńka ciemna',
+        'Opieńka północna', 'Opieńka cebulotrzonowa', 'Pieczarka dwuzarodnikowa', 'Pieczarka krwawiąca',
+        'Pieczarka miejska', 'Pieczarka okazała', 'Pieczarka drobnołuskowa', 'Gołąbek błotny',
+        'Gołąbek jasnożółty', 'Gołąbek słodkawy', 'Gołąbek śledziowy', 'Gołąbek złotawy',
+        'Gołąbek zmiennobarwny', 'Gołąbek brunatnofioletowy', 'Gołąbek ametystowy', 'Gołąbek fiołkowozielony',
+        'Gołąbek kunowy', 'Płomiennica zimowa', 'Łuskwiak zmienny', 'Lakówka ametystowa',
+        'Lakówka pospolita', 'Klejek czerwonawy', 'Klejówka świerkowa', 'Klejówka różowa',
+        'Maślanka łagodna', 'Gąsówka fioletowawa', 'Gąsówka dwubarwna', 'Gąska topolowa',
+        'Gąska gołębia', 'Kępkowiec jasnobrązowy', 'Czasznica olbrzymia', 'Purchawka workowata',
+        'Purchawka oczkowana', 'Purchawka miękka', 'Wodnicha późna', 'Szyszkówka świerkowa'
       ];
     }
     function validAnswers(a, ids) {

@@ -252,7 +252,7 @@ test('room creation date and prediction start use immutable server timestamps sh
   assert.equal(finished.predictionStartedAt.isEqual(started.predictionStartedAt), true);
 });
 
-test('all fifty species can be predicted, submitted and reviewed under the cloud rules', { timeout: 120000 }, async () => {
+test('all one hundred species can be predicted, submitted and reviewed under the cloud rules', { timeout: 120000 }, async () => {
   const host = await client('Katalog');
   const id = await host.repo.create({ name: 'Pięćdziesiąt gatunków', limit: 2 });
   await host.repo.transition(id, 'begin');

@@ -1,4 +1,5 @@
 import type { AppColors } from '@/constants/app-theme';
+import { Fonts } from '@/constants/theme';
 import { useAppTheme, useThemedStyles } from '@/hooks/use-app-theme';
 import { router } from 'expo-router';
 import { useMemo, useState } from 'react';
@@ -26,6 +27,10 @@ export function HomeScreen() {
 
   return <SafeAreaView edges={['top', 'left', 'right']} style={styles.screen}>
     <MotionView style={styles.header}>
+      <Pressable accessibilityRole="button" accessibilityLabel="Jak to działa?" accessibilityHint="Otwiera instrukcję gry z rozwijanymi rozdziałami"
+        onPress={() => setShowHelp(true)} style={({ pressed }) => [styles.iconButton, pressed && styles.pressed]}>
+        <InfoIcon size={19} color={colors.textMuted} />
+      </Pressable>
       <Text accessibilityRole="header" style={styles.logo}>Grzy<Text style={styles.logoAccent}>Bet</Text></Text>
       <Pressable accessibilityRole="button" accessibilityLabel="Ustawienia" onPress={() => router.push('/settings')}
         style={({ pressed }) => [styles.iconButton, pressed && styles.pressed]}>
@@ -36,10 +41,6 @@ export function HomeScreen() {
     <ScrollView style={styles.content} contentContainerStyle={styles.page} showsVerticalScrollIndicator={false}>
       <MotionView delay={30} style={styles.heading}>
         <Text accessibilityRole="header" style={styles.title}>{greeting}</Text>
-        <Pressable accessibilityRole="button" accessibilityLabel="Jak to działa?" accessibilityHint="Otwiera instrukcję gry z rozwijanymi rozdziałami"
-          onPress={() => setShowHelp(true)} style={({ pressed }) => [styles.iconButton, pressed && styles.pressed]}>
-          <InfoIcon size={19} color={colors.textMuted} />
-        </Pressable>
       </MotionView>
 
       <MotionView delay={70} style={[styles.tripSection, !active && styles.emptyTripSection]}>
@@ -73,9 +74,9 @@ export function HomeScreen() {
         </View>
       </MotionView>
 
-      {recent && <MotionView delay={100} style={styles.history}>
+      <MotionView delay={100} style={styles.history}>
         <Text accessibilityRole="header" style={styles.sectionTitle}>Ostatnia wyprawa</Text>
-        <Pressable accessibilityRole="button" accessibilityLabel={'Podsumowanie wyprawy ' + recent.room.name}
+        {recent ? <Pressable accessibilityRole="button" accessibilityLabel={'Podsumowanie wyprawy ' + recent.room.name}
           onPress={() => openRoom(recent.room.id)} style={({ pressed }) => [styles.historyRow, pressed && styles.pressed]}>
           <View style={styles.historyIcon}><HistoryIcon size={19} color={colors.textMuted} /></View>
           <View style={styles.historyCopy}>
@@ -86,8 +87,14 @@ export function HomeScreen() {
               : `${recent.result.points} pkt za typowanie`}</Text>
           </View>
           <ArrowIcon direction="right" size={18} color={colors.textMuted} />
-        </Pressable>
-      </MotionView>}
+        </Pressable> : <View style={styles.historyRow}>
+          <View style={styles.historyIcon}><HistoryIcon size={19} color={colors.textMuted} /></View>
+          <View style={styles.historyCopy}>
+            <Text style={styles.historyName}>Pierwsza wyprawa przed Tobą</Text>
+            <Text style={styles.historyMeta}>Po jej zakończeniu zobaczysz tutaj zbiory i wynik.</Text>
+          </View>
+        </View>}
+      </MotionView>
 
       <MotionView delay={130}>
         <Pressable accessibilityRole="button" accessibilityLabel={`Grzybedex: ${discovered} z ${species.length} gatunków`}
@@ -112,15 +119,15 @@ const createStyles = (c: AppColors) => StyleSheet.create({
   screen: { flex: 1, backgroundColor: c.background },
   header: { width: '100%', maxWidth: 430, alignSelf: 'center', paddingHorizontal: 22, paddingTop: 12, paddingBottom: 8,
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 16 },
-  logo: { color: c.text, fontSize: 27, fontWeight: '800', letterSpacing: -1 },
+  logo: { flex: 1, minWidth: 0, textAlign: 'center', color: c.text, fontSize: 27, fontWeight: '800', letterSpacing: -1 },
   logoAccent: { color: c.navigationActive },
   iconButton: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
   pressed: { opacity: 0.65 },
   content: { flex: 1 },
   page: { width: '100%', maxWidth: 430, alignSelf: 'center', flexGrow: 1, justifyContent: 'space-between',
     paddingHorizontal: 22, paddingTop: 12, paddingBottom: 24, gap: 18 },
-  heading: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
-  title: { flex: 1, minWidth: 0, color: c.text, fontSize: 26, lineHeight: 33, letterSpacing: -0.8, fontWeight: '700' },
+  heading: { minHeight: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
+  title: { flex: 1, minWidth: 0, color: c.text, fontFamily: Fonts.serif, fontSize: 28, lineHeight: 36, letterSpacing: -0.3, fontWeight: '400' },
   tripSection: { gap: 14 },
   emptyTripSection: { flexGrow: 1, justifyContent: 'center', paddingVertical: 8 },
   current: { backgroundColor: c.surface, borderRadius: 18, padding: 20, gap: 10 },

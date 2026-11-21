@@ -2,16 +2,17 @@ import type { AppColors } from '@/constants/app-theme';
 import { useAppTheme, useThemedStyles } from '@/hooks/use-app-theme';
 import { Image } from 'expo-image';
 import { Link, router, Stack, useLocalSearchParams } from 'expo-router';
-import { useEffect, useMemo, useState } from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useMemo, useRef, useState, type ComponentRef } from 'react';
+import { Keyboard, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import Animated, { Easing, ReduceMotion, useAnimatedStyle, useReducedMotion, useSharedValue, withTiming } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { DiamondIcon, LockIcon, MushroomIcon, SparkleIcon } from '@/components/grzybet-icons';
+import { CloseIcon, DiamondIcon, LockIcon, MushroomIcon, SearchIcon, SparkleIcon } from '@/components/grzybet-icons';
 import { MotionPressable as Pressable, MotionView } from '@/components/motion';
 import { species, useGame } from './game';
 import { mushroomCatalog } from './grzybdex-catalog';
 import { badgeProgress, calculateGrzybdex, type MushroomBadge, type SpeciesStats } from './grzybdex-stats';
 import { Button, Copy, Page, useUIStyles, Title } from './ui';
+import { searchSpecies } from './mushroom-species';
 
 const nextBadgeLabel: Record<MushroomBadge['id'], string> = {
   wood: 'drewna', bronze: 'brązu', silver: 'srebra', gold: 'złota', diamond: 'diamentu', mushroomer: 'Grzybiarza',
@@ -28,8 +29,14 @@ export function GrzybdexScreen() {
   const colors = useAppTheme();
   const collection = useCollection();
   const [filter, setFilter] = useState<'all' | 'found' | 'locked'>('all');
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [query, setQuery] = useState('');
+  const scroll = useRef<ComponentRef<typeof ScrollView>>(null);
+  const matchingIds = useMemo(() => new Set(searchSpecies(query).map(item => item.id)), [query]);
   const entries = mushroomCatalog.map(mushroom => ({ mushroom, stats: collection.find(entry => entry.species === mushroom.name)! }));
-  const visible = entries.filter(({ stats }) => filter === 'all' || (filter === 'found' ? stats.total > 0 : stats.total === 0));
+  const visible = entries.filter(({ mushroom, stats }) => matchingIds.has(mushroom.id)
+    && (filter === 'all' || (filter === 'found' ? stats.total > 0 : stats.total === 0)));
+  useEffect(() => { scroll.current?.scrollTo({ y: 0, animated: false }); }, [query, filter]);
   // Fixed pairs keep two columns on native and web without measured-width rounding.
   const rows = Array.from({ length: Math.ceil(visible.length / 2) }, (_, index) => visible.slice(index * 2, index * 2 + 2));
   const discovered = collection.filter(entry => entry.total > 0).length;
@@ -37,7 +44,28 @@ export function GrzybdexScreen() {
   const badges = collection.reduce((sum, entry) => sum + badgeProgress(entry.total).earned, 0);
   return <SafeAreaView edges={['top', 'left', 'right']} style={styles.collectionScreen}>
     <MotionView distance={0} style={styles.collectionHeader}>
-      <Text accessibilityRole="header" style={styles.collectionTitle}>Grzybedex</Text>
+      <View style={styles.titleRow}>
+        <Text accessibilityRole="header" style={styles.collectionTitle}>Grzybedex</Text>
+        <Pressable accessibilityRole="button" accessibilityLabel={searchOpen ? 'Zamknij wyszukiwanie' : 'Szukaj grzybów'}
+          aria-expanded={searchOpen} onPress={() => {
+            setSearchOpen(open => !open);
+            setQuery('');
+            Keyboard.dismiss();
+          }} style={({ pressed }) => [styles.searchButton, searchOpen && styles.filterSelected, pressed && styles.pressed]}>
+          {searchOpen ? <CloseIcon size={20} color={colors.textMuted} /> : <SearchIcon color={colors.textMuted} />}
+        </Pressable>
+      </View>
+      {searchOpen && <MotionView distance={0} style={styles.search}>
+        <View style={styles.searchRow}>
+          <SearchIcon size={18} color={colors.textMuted} />
+          <TextInput autoFocus accessibilityLabel="Szukaj grzyba w Grzybedexie" placeholder="Nazwa, np. prawdziwek…"
+            value={query} onChangeText={setQuery} autoCorrect={false} autoCapitalize="none" returnKeyType="search"
+            onSubmitEditing={() => Keyboard.dismiss()} placeholderTextColor={colors.textMuted} style={styles.searchInput} />
+          {!!query && <Pressable accessibilityRole="button" accessibilityLabel="Wyczyść wyszukiwanie"
+            onPress={() => setQuery('')} style={styles.searchButton}><CloseIcon size={16} color={colors.textMuted} /></Pressable>}
+        </View>
+        <Text accessibilityLiveRegion="polite" style={styles.smallCopy}>Wyniki: {visible.length}</Text>
+      </MotionView>}
       <View style={styles.summary}>
         <SummaryStat value={`${discovered}/${mushroomCatalog.length}`} label="gatunki" />
         <SummaryStat value={total} label="sztuki" />
@@ -52,7 +80,8 @@ export function GrzybdexScreen() {
           </Pressable>)}
       </View>
     </MotionView>
-    <ScrollView style={styles.collectionScroll} contentContainerStyle={[s.page, styles.collectionContent]}>
+    <ScrollView ref={scroll} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag"
+      style={styles.collectionScroll} contentContainerStyle={[s.page, styles.collectionContent]}>
     <View style={styles.grid}>
       {rows.map((row, rowIndex) => <View key={row[0].mushroom.id} style={styles.gridRow}>
         {row.map(({ mushroom, stats }, columnIndex) => {
@@ -84,8 +113,9 @@ export function GrzybdexScreen() {
       </View>)}
     </View>
     {!visible.length && <View accessibilityLiveRegion="polite" style={styles.empty}>
-      <Text style={styles.sectionTitle}>{filter === 'found' ? 'Pierwsze odkrycie przed Tobą' : 'Kolekcja kompletna'}</Text>
-      <Copy>{filter === 'found' ? 'Pierwsza zatwierdzona sztuka odblokuje zdjęcie, notatkę i rangę.' : 'Masz już wszystkie gatunki. Kolejne sztuki przybliżają Cię do nowych rang.'}</Copy>
+      <Text style={styles.sectionTitle}>{query.trim() ? 'Nie znaleziono grzybów' : filter === 'found' ? 'Pierwsze odkrycie przed Tobą' : 'Kolekcja kompletna'}</Text>
+      <Copy>{query.trim() ? 'Spróbuj krótszej nazwy, nazwy potocznej lub filtra „Wszystkie”.'
+        : filter === 'found' ? 'Pierwsza zatwierdzona sztuka odblokuje zdjęcie, notatkę i rangę.' : 'Masz już wszystkie gatunki. Kolejne sztuki przybliżają Cię do nowych rang.'}</Copy>
     </View>}
     <Copy>Postęp tworzą Twoje zatwierdzone zbiory. Oczekujące i odrzucone zgłoszenia się nie liczą.</Copy>
     </ScrollView>
@@ -178,6 +208,12 @@ const createStyles = (c: AppColors) => StyleSheet.create({
   collectionHeader: { width: '100%', maxWidth: 640, alignSelf: 'center', paddingHorizontal: 22, paddingTop: 20, paddingBottom: 12, gap: 16, flexShrink: 0 },
   collectionScroll: { flex: 1 },
   collectionContent: { paddingTop: 0 },
+  titleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
+  searchButton: { width: 44, minHeight: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+  search: { gap: 6 },
+  searchRow: { flexDirection: 'row', alignItems: 'center', paddingLeft: 12, borderWidth: 1, borderColor: c.borderStrong,
+    borderRadius: 12, backgroundColor: c.surface },
+  searchInput: { flex: 1, minWidth: 0, minHeight: 48, padding: 12, fontSize: 14, color: c.text },
   collectionTitle: { color: c.text, fontSize: 28, lineHeight: 34, fontWeight: '700', letterSpacing: -0.8 },
   intro: { gap: 8 },
   eyebrow: { color: c.textMuted, fontSize: 10, fontWeight: '600', letterSpacing: 1.4 },

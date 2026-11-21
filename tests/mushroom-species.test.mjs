@@ -6,10 +6,11 @@ import { calculateResults } from '../src/features/domain.ts';
 import { decodeRooms, encodeRooms } from '../src/features/storage-format.ts';
 import { calculateGrzybdex } from '../src/features/grzybdex-stats.ts';
 
-test('exactly fifty unique species share the same cloud validation and local photo catalog', () => {
-  assert.equal(species.length, 50);
-  assert.equal(new Set(species).size, 50);
-  assert.equal(new Set(mushroomSpecies.map(item => item.id)).size, 50);
+test('exactly one hundred unique species share the same cloud validation and local photo catalog', () => {
+  assert.equal(species.length, 100);
+  assert.equal(new Set(species).size, 100);
+  assert.equal(new Set(mushroomSpecies.map(item => item.id)).size, 100);
+  assert.equal(new Set(mushroomSpecies.map(item => item.scientificName)).size, 100);
   assert.deepEqual(species.slice(0, 4), ['Borowik', 'Podgrzybek', 'Maślak', 'Kurka']);
   const rules = readFileSync(new URL('../firebase/firestore.rules', import.meta.url), 'utf8');
   const values = [...rules.match(/function species\(s\) \{([\s\S]+?)\}/)[1].matchAll(/'([^']+)'/g)].map(match => match[1]);
@@ -29,7 +30,7 @@ test('exactly fifty unique species share the same cloud validation and local pho
 });
 
 test('search accepts Polish accents, their unaccented forms, common names and scientific names', () => {
-  for (const query of ['koźlarz', 'kozlarz', ' KOZLARZ ']) assert.equal(searchSpecies(query).length, 6);
+  for (const query of ['koźlarz', 'kozlarz', ' KOZLARZ ']) assert.equal(searchSpecies(query).length, 10);
   for (const query of ['prawdziwek', 'borowik szlachetny', 'Boletus edulis']) assert.equal(searchSpecies(query)[0].name, 'Borowik');
   assert.equal(searchSpecies('kurka')[0].name, 'Kurka');
   assert.equal(searchSpecies('maslak modrzewiowy')[0].name, 'Maślak żółty');
@@ -39,8 +40,13 @@ test('search accepts Polish accents, their unaccented forms, common names and sc
     ['kozia broda', 'Siedzuń sosnowy'], ['ucho judaszowe', 'Uszak bzowy'],
     ['PLEUROTUS PULMONARIUS', 'Boczniak łyżkowaty'], ['golabek zielonawy', 'Gołąbek zielonawy'],
     ['podgrzybek obcietozarodnikowy', 'Podgrzybek obciętozarodnikowy'], ['majowka', 'Gęśnica wiosenna'],
+    ['plomiennica zimowa', 'Płomiennica zimowa'], ['gąsówka naga', 'Gąsówka fioletowawa'],
+    ['LEPISTA NUDA', 'Gąsówka fioletowawa'], ['portobello', 'Pieczarka dwuzarodnikowa'],
+    ['pieprznik ametystowy', 'Pieprznik ametystowy'], ['purchawica olbrzymia', 'Czasznica olbrzymia'],
+    ['podgrzybek opros', 'Suchogrzybek oprószony'], ['koźlarz czarny', 'Koźlarz czarny'],
   ]) assert.equal(searchSpecies(query)[0].name, name);
-  assert.equal(searchSpecies('').length, 50);
+  assert.equal(searchSpecies('').length, 100);
+  assert.equal(searchSpecies('  \t ').length, 100);
   assert.deepEqual(searchSpecies('nieistniejący grzyb'), []);
   assert.equal(speciesLabel('Borowik'), 'Borowik szlachetny');
   assert.equal(speciesLabel('Nieznany'), 'Nieznany');

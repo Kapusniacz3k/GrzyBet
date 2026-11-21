@@ -37,6 +37,12 @@ export function InfoIcon({ size = 18, color = '#999999' }: IconProps) {
   </OutlineCanvas>;
 }
 
+export function SearchIcon({ size = 22, color = '#999999' }: IconProps) {
+  return <OutlineCanvas size={size} color={color}>
+    <Circle cx={10.5} cy={10.5} r={7.5} /><Path d="m16 16 5 5" />
+  </OutlineCanvas>;
+}
+
 export function PeopleIcon({ size = 16, color = '#999999' }: IconProps) {
   return <OutlineCanvas size={size} color={color}>
     <Path d="M18 21a8 8 0 0 0-16 0" /><Circle cx={10} cy={8} r={5} />
