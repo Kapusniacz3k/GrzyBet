@@ -2,8 +2,8 @@ import type { AppColors } from '@/constants/app-theme';
 import { useAppTheme, useThemedStyles } from '@/hooks/use-app-theme';
 import { Image } from 'expo-image';
 import { Link, router, Stack, useLocalSearchParams } from 'expo-router';
-import { useEffect, useId, useMemo, useRef, useState, type ComponentRef } from 'react';
-import { Keyboard, Platform, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { memo, useEffect, useId, useMemo, useRef, useState } from 'react';
+import { FlatList, Keyboard, Platform, Pressable as NativePressable, StyleSheet, Text, TextInput, View, type ListRenderItemInfo } from 'react-native';
 import Svg, { Defs, FeColorMatrix, Filter, Image as SvgImage } from 'react-native-svg';
 import Animated, { Easing, ReduceMotion, useAnimatedStyle, useReducedMotion, useSharedValue, withTiming } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -22,6 +22,13 @@ const nextBadgeLabel: Record<MushroomBadge['id'], string> = {
   wood: 'drewna', bronze: 'brązu', silver: 'srebra', gold: 'złota', diamond: 'diamentu', mushroomer: 'Grzybiarza',
 };
 
+type MushroomGridEntry = { mushroom: typeof mushroomCatalog[number]; total: number };
+type MushroomGridRow = readonly MushroomGridEntry[];
+const gridLayout = StyleSheet.create({ separator: { height: 12 } });
+const mushroomRowKey = (row: MushroomGridRow) => row[0].mushroom.id;
+const renderMushroomRow = ({ item }: ListRenderItemInfo<MushroomGridRow>) => <MushroomRow entries={item} />;
+const MushroomRowSeparator = () => <View style={gridLayout.separator} />;
+
 function useCollection() {
   const { rooms, userId } = useGame();
   return useMemo(() => calculateGrzybdex(rooms, userId, species), [rooms, userId]);
@@ -38,18 +45,22 @@ export function GrzybdexScreen() {
   const [traitFilters, setTraitFilters] = useState(emptyTraitSelection);
   const [traitPickerOpen, setTraitPickerOpen] = useState(false);
   const traitsActive = hasTraitFilters(traitFilters);
-  const scroll = useRef<ComponentRef<typeof ScrollView>>(null);
+  const scroll = useRef<FlatList<MushroomGridRow>>(null);
   const matchingIds = useMemo(() => new Set(searchSpecies(query).map(item => item.id)), [query]);
-  const entries = mushroomCatalog.map(mushroom => ({ mushroom, stats: collection.find(entry => entry.species === mushroom.name)! }));
-  const visible = entries.filter(({ mushroom, stats }) => matchingIds.has(mushroom.id)
+  const entries = useMemo(() => {
+    const totals = new Map(collection.map(entry => [entry.species, entry.total]));
+    return mushroomCatalog.map(mushroom => ({ mushroom, total: totals.get(mushroom.name) ?? 0 }));
+  }, [collection]);
+  const visible = useMemo(() => entries.filter(({ mushroom, total }) => matchingIds.has(mushroom.id)
     && matchesMushroomTraits(mushroom.id, traitFilters)
-    && (filter === 'all' || (filter === 'found' ? stats.total > 0 : stats.total === 0)));
-  useEffect(() => { scroll.current?.scrollTo({ y: 0, animated: false }); }, [query, filter, traitFilters]);
+    && (filter === 'all' || (filter === 'found' ? total > 0 : total === 0))), [entries, matchingIds, traitFilters, filter]);
+  useEffect(() => { scroll.current?.scrollToOffset({ offset: 0, animated: false }); }, [query, filter, traitFilters]);
   // Fixed pairs keep two columns on native and web without measured-width rounding.
-  const rows = Array.from({ length: Math.ceil(visible.length / 2) }, (_, index) => visible.slice(index * 2, index * 2 + 2));
-  const discovered = collection.filter(entry => entry.total > 0).length;
-  const total = collection.reduce((sum, entry) => sum + entry.total, 0);
-  const badges = collection.reduce((sum, entry) => sum + badgeProgress(entry.total).earned, 0);
+  const rows = useMemo(() => Array.from({ length: Math.ceil(visible.length / 2) }, (_, index) => visible.slice(index * 2, index * 2 + 2)), [visible]);
+  const { discovered, total, badges } = useMemo(() => collection.reduce((summary, entry) => ({
+    discovered: summary.discovered + Number(entry.total > 0), total: summary.total + entry.total,
+    badges: summary.badges + badgeProgress(entry.total).earned,
+  }), { discovered: 0, total: 0, badges: 0 }), [collection]);
   return <SafeAreaView edges={['top', 'left', 'right']} style={styles.collectionScreen}>
     <MotionView distance={0} style={styles.collectionHeader}>
       <View style={styles.titleRow}>
@@ -95,56 +106,64 @@ export function GrzybdexScreen() {
           </Pressable>)}
       </View>
     </MotionView>
-    <ScrollView ref={scroll} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag"
-      style={styles.collectionScroll} contentContainerStyle={[s.page, styles.collectionContent]}>
-    {traitsActive && <View style={styles.traitResults}>
+    <FlatList ref={scroll} data={rows} renderItem={renderMushroomRow} keyExtractor={mushroomRowKey}
+      keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag"
+      initialNumToRender={4} maxToRenderPerBatch={4} windowSize={5} updateCellsBatchingPeriod={40}
+      removeClippedSubviews={Platform.OS === 'android'} ItemSeparatorComponent={MushroomRowSeparator}
+      style={styles.collectionScroll} contentContainerStyle={[s.page, styles.collectionContent]}
+      ListHeaderComponent={traitsActive ? <View style={[styles.traitResults, styles.listHeader]}>
       <View style={styles.traitResultsHeading}><Text accessibilityLiveRegion="polite" style={styles.traitResultsTitle}>Dopasowania w katalogu: {visible.length}</Text>
         <Pressable accessibilityRole="button" accessibilityLabel="Usuń filtr cech" onPress={() => setTraitFilters(emptyTraitSelection())} style={styles.clearTraits}>
           <Text style={styles.traitButtonText}>Wyczyść</Text></Pressable>
       </View>
       <Text style={styles.smallCopy}>{traitSelectionLabels(traitFilters).join(' · ')}</Text>
       <Text style={styles.traitNotice}>{identificationNotice}</Text>
-    </View>}
-    <View style={styles.grid}>
-      {rows.map((row, rowIndex) => <View key={row[0].mushroom.id} style={styles.gridRow}>
-        {row.map(({ mushroom, stats }, columnIndex) => {
-          const index = rowIndex * 2 + columnIndex;
-          const progress = badgeProgress(stats.total);
-          const unlocked = stats.total > 0;
-          return <Pressable key={mushroom.id} enterDelay={Math.min(index, 7) * 45} accessibilityRole="button" accessibilityLabel={`Zobacz ${mushroom.label}`}
-            accessibilityHint={unlocked ? `${stats.total} znalezionych sztuk. Otwiera statystyki, rangę i notatkę.` : 'Gatunek nieodkryty. Otwiera kolorowe zdjęcie i notatkę. Pierwsza zatwierdzona sztuka usuwa kłódkę z kafelka.'}
-            onPress={() => router.push({ pathname: '/grzybdex/[id]', params: { id: mushroom.id } })}
-            style={({ pressed }) => [styles.tile, pressed && styles.pressed]}>
-            <MushroomTilePhoto mushroom={mushroom} unlocked={unlocked} />
-            <View style={styles.tileBody}>
-              <Text numberOfLines={2} style={styles.tileTitle}>{mushroom.label}</Text>
-              {unlocked ? <>
-                <View style={styles.tileCountRow}><View style={styles.tileQuantity}><Text style={styles.tileCount}>{stats.total}</Text><Text style={styles.tileCopy}>szt.</Text></View>
-                  <Text style={styles.tileCopy}>{progress.current?.name}</Text></View>
-                <View accessibilityRole="progressbar" accessibilityLabel={progress.next ? `Do rangi ${progress.next.name}` : 'Najwyższa ranga zdobyta'}
-                  aria-valuemin={0} aria-valuemax={progress.next?.threshold ?? stats.total} aria-valuenow={stats.total} style={styles.tileTrack}>
-                  <View style={[styles.tileFill, { width: `${progress.percent}%` }]} />
-                </View>
-                <Text style={styles.tileCopy}>{progress.next ? `${progress.remaining} do ${nextBadgeLabel[progress.next.id]}` : 'Najwyższa ranga'}</Text>
-              </> : <><Text style={styles.tileCopy}>Jeszcze nieodkryty</Text><Text style={styles.tileCopy}>Znajdź pierwszą sztukę</Text></>}
-            </View>
-          </Pressable>;
-        })}
-        {row.length === 1 && <View style={styles.tileSpacer} />}
-      </View>)}
-    </View>
-    {!visible.length && <View accessibilityLiveRegion="polite" style={styles.empty}>
+    </View> : undefined}
+    ListEmptyComponent={<View accessibilityLiveRegion="polite" style={styles.empty}>
       <Text style={styles.sectionTitle}>{traitsActive ? 'Brak dopasowań' : query.trim() ? 'Nie znaleziono grzybów' : filter === 'found' ? 'Pierwsze odkrycie przed Tobą' : 'Kolekcja kompletna'}</Text>
       <Copy>{traitsActive ? 'Zmień lub pomiń cechę. Możesz też usunąć nazwę z wyszukiwania lub wybrać „Wszystkie”. Brak dopasowania nie rozstrzyga, jaki to gatunek.' : query.trim() ? 'Spróbuj krótszej nazwy, nazwy potocznej lub filtra „Wszystkie”.'
         : filter === 'found' ? 'Pierwsza zatwierdzona sztuka doda grzyba do odkrytych i odblokuje pierwszą rangę.' : 'Masz już wszystkie gatunki. Kolejne sztuki przybliżają Cię do nowych rang.'}</Copy>
     </View>}
-    <Copy>Postęp tworzą Twoje zatwierdzone zbiory. Oczekujące i odrzucone zgłoszenia się nie liczą.</Copy>
-    </ScrollView>
+    ListFooterComponent={<View style={styles.listFooter}><Copy>Postęp tworzą Twoje zatwierdzone zbiory. Oczekujące i odrzucone zgłoszenia się nie liczą.</Copy></View>} />
     {traitPickerOpen && <MushroomTraitPicker initial={traitFilters} onClose={() => setTraitPickerOpen(false)} onApply={selection => {
       setTraitFilters(selection); setFilter('all'); setQuery(''); setSearchOpen(false); setTraitPickerOpen(false);
     }} />}
   </SafeAreaView>;
 }
+
+function MushroomRow({ entries }: { entries: MushroomGridRow }) {
+  const styles = useThemedStyles(createStyles);
+  return <View style={styles.gridRow}>
+    {entries.map(({ mushroom, total }) => <MushroomTile key={mushroom.id} mushroom={mushroom} total={total} />)}
+    {entries.length === 1 && <View style={styles.tileSpacer} />}
+  </View>;
+}
+
+// Scroll cells do not need an animation controller per tile. Stable scalar props
+// also keep typing and unrelated room updates from rebuilding unchanged photos.
+const MushroomTile = memo(function MushroomTile({ mushroom, total }: MushroomGridEntry) {
+  const styles = useThemedStyles(createStyles);
+  const progress = useMemo(() => badgeProgress(total), [total]);
+  const unlocked = total > 0;
+  return <NativePressable accessibilityRole="button" accessibilityLabel={`Zobacz ${mushroom.label}`}
+    accessibilityHint={unlocked ? `${total} znalezionych sztuk. Otwiera statystyki, rangę i notatkę.` : 'Gatunek nieodkryty. Otwiera kolorowe zdjęcie i notatkę. Pierwsza zatwierdzona sztuka usuwa kłódkę z kafelka.'}
+    onPress={() => router.push({ pathname: '/grzybdex/[id]', params: { id: mushroom.id } })}
+    style={({ pressed }) => [styles.tile, pressed && styles.pressed]}>
+    <MushroomTilePhoto mushroom={mushroom} unlocked={unlocked} />
+    <View style={styles.tileBody}>
+      <Text numberOfLines={2} style={styles.tileTitle}>{mushroom.label}</Text>
+      {unlocked ? <>
+        <View style={styles.tileCountRow}><View style={styles.tileQuantity}><Text style={styles.tileCount}>{total}</Text><Text style={styles.tileCopy}>szt.</Text></View>
+          <Text style={styles.tileCopy}>{progress.current?.name}</Text></View>
+        <View accessibilityRole="progressbar" accessibilityLabel={progress.next ? `Do rangi ${progress.next.name}` : 'Najwyższa ranga zdobyta'}
+          aria-valuemin={0} aria-valuemax={progress.next?.threshold ?? total} aria-valuenow={total} style={styles.tileTrack}>
+          <View style={[styles.tileFill, { width: `${progress.percent}%` }]} />
+        </View>
+        <Text style={styles.tileCopy}>{progress.next ? `${progress.remaining} do ${nextBadgeLabel[progress.next.id]}` : 'Najwyższa ranga'}</Text>
+      </> : <><Text style={styles.tileCopy}>Jeszcze nieodkryty</Text><Text style={styles.tileCopy}>Znajdź pierwszą sztukę</Text></>}
+    </View>
+  </NativePressable>;
+});
 
 export function MushroomDetailsScreen() {
   const styles = useThemedStyles(createStyles);
@@ -203,7 +222,7 @@ function EdibilityCard({ mushroomId }: { mushroomId: string }) {
   </MotionView>;
 }
 
-function MushroomTilePhoto({ mushroom, unlocked }: { mushroom: typeof mushroomCatalog[number]; unlocked: boolean }) {
+const MushroomTilePhoto = memo(function MushroomTilePhoto({ mushroom, unlocked }: { mushroom: typeof mushroomCatalog[number]; unlocked: boolean }) {
   const styles = useThemedStyles(createStyles);
   const filterId = `grzybedex-gray-${useId().replace(/[^a-zA-Z0-9_-]/g, '')}`;
   const top = mushroom.id === 'podgrzybek';
@@ -215,13 +234,15 @@ function MushroomTilePhoto({ mushroom, unlocked }: { mushroom: typeof mushroomCa
       </Filter></Defs>
       <SvgImage href={mushroom.photo} width={160} height={100} preserveAspectRatio={top ? 'xMidYMin slice' : 'xMidYMid slice'} filter={`url(#${filterId})`} />
     </Svg> : <View style={[StyleSheet.absoluteFill, !unlocked && styles.grayscalePhoto]}>
-      <Image accessible={false} source={mushroom.photo} contentFit="cover" contentPosition={top ? 'top' : 'center'} style={StyleSheet.absoluteFill} />
+      <Image accessible={false} source={mushroom.photo} contentFit="cover" contentPosition={top ? 'top' : 'center'}
+        allowDownscaling enforceEarlyResizing cachePolicy="memory-disk" decodeFormat="rgb" recyclingKey={mushroom.id}
+        transition={0} style={StyleSheet.absoluteFill} />
     </View>}
     {!unlocked && <View pointerEvents="none" style={styles.lockOverlay}>
       <View style={styles.lockBadge}><LockIcon size={24} color="#E2E2E2" /></View>
     </View>}
   </View>;
-}
+});
 
 function SummaryStat({ value, label }: { value: number | string; label: string }) {
   const styles = useThemedStyles(createStyles);
@@ -269,7 +290,9 @@ const createStyles = (c: AppColors) => StyleSheet.create({
   collectionScreen: { flex: 1, backgroundColor: c.background },
   collectionHeader: { width: '100%', maxWidth: 640, alignSelf: 'center', paddingHorizontal: 22, paddingTop: 20, paddingBottom: 12, gap: 16, flexShrink: 0 },
   collectionScroll: { flex: 1 },
-  collectionContent: { paddingTop: 0 },
+  collectionContent: { paddingTop: 0, gap: 0 },
+  listHeader: { marginBottom: 20 },
+  listFooter: { paddingTop: 20 },
   titleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
   searchButton: { width: 44, minHeight: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
   search: { gap: 6 },
@@ -296,7 +319,6 @@ const createStyles = (c: AppColors) => StyleSheet.create({
   filterLabel: { color: c.textMuted, fontSize: 12, fontWeight: '500' },
   filterLabelSelected: { color: c.text, fontWeight: '600' },
   smallCopy: { color: c.textMuted, fontSize: 12, lineHeight: 18 },
-  grid: { width: '100%', gap: 12 },
   gridRow: { flexDirection: 'row', gap: 12 },
   tileSpacer: { flex: 1, minWidth: 0 },
   tile: { flex: 1, minWidth: 0, borderRadius: 18, overflow: 'hidden', backgroundColor: c.surface },

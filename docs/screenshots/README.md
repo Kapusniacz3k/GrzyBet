@@ -1,14 +1,14 @@
 # Zrzuty ekranu GrzyBet
 
-Zapisz screeny w tym folderze (`docs/screenshots/`) pod poniższymi nazwami. Główne [README](../../README.md#zrzuty-ekranu) wyświetli je automatycznie. Galeria jest przygotowana na 18 obrazów; zrzuty nie zostały jeszcze dodane.
+Ten folder zawiera 18 rzeczywistych zrzutów GrzyBet. Główne [README](../../README.md#zrzuty-ekranu) wyświetla je w galerii.
 
-Użyj pionowych PNG z telefonu, najlepiej w tej samej rozdzielczości. Pokaż przykładowe nicki i dane; nie umieszczaj haseł, prywatnych adresów e-mail ani kodu aktywnego pokoju. Dla czytelnego porównania wykonaj większość zrzutów w jednym motywie, a `settings.png` w jasnym.
+Zrzuty wykonano w wersji webowej aplikacji, w pionowym widoku 390 × 844 px, i zapisano jako PNG. Pokazują dwa profile gości, demonstracyjne wyprawy i przykładowe zbiory ze zdjęciami poglądowymi z katalogu. Widoczny kod lobby dotyczy zakończonej wyprawy. Formularze konta są puste; ekran usuwania pokazuje wyłącznie potwierdzenie, bez usuwania profilu. Większość widoków ma ciemny motyw, a `settings.png` — jasny.
 
 | Plik | Co pokazać |
 | --- | --- |
 | `home.png` | Ekran główny: powitanie, tworzenie pokoju, dołączanie kodem i podsumowanie wyprawy. |
-| `room.png` | Lobby z uczestnikami i przyciskiem rozpoczęcia gry. Użyj pokoju demonstracyjnego. |
-| `predictions.png` | Jedno z czterech pytań z wybraną odpowiedzią i opcją pewniaka ×2. |
+| `room.png` | Lobby demonstracyjnej wyprawy z dwoma uczestnikami i przyciskiem rozpoczęcia gry. |
+| `predictions.png` | Pierwsze z czterech pytań z wybraną odpowiedzią. |
 | `prediction-summary.png` | Podsumowanie zatwierdzonych odpowiedzi z oznaczonym pewniakiem. |
 | `coupons.png` | Lista zakładów z kursami i saldem wirtualnych grzybków. |
 | `coupon-slip.png` | Kupon z wybranymi zakładami, łącznym kursem, stawką i możliwą wygraną. |
@@ -16,13 +16,13 @@ Użyj pionowych PNG z telefonu, najlepiej w tej samej rozdzielczości. Pokaż pr
 | `harvest-review.png` | Widok gospodarza: zgłoszenie oczekujące na zatwierdzenie lub odrzucenie. |
 | `results.png` | Zakończona wyprawa: wyniki uczestników i szczegóły naliczenia punktów. |
 | `grzybedex.png` | Katalog, wyszukiwarka oraz odkryte i nieodkryte grzyby z kłódkami. |
-| `mushroom-details.png` | Karta gatunku z kolorowym zdjęciem i sekcją Jadalność. Pokaż oznaczenie, warunki i źródło, np. dla opieńki miodowej; niżej są notatka, statystyki i odznaka. |
+| `mushroom-details.png` | Karta borowika szlachetnego z kolorowym zdjęciem, sekcją Jadalność i źródłem informacji. |
 | `trait-filter.png` | Jeden z kroków wyboru cech, np. spód kapelusza z małymi ikonami. |
 | `profile.png` | Twój dorobek i dwa kafelki do otwierania list wypraw. |
 | `active-trips.png` | Otwarte okno z listą aktywnych wypraw. |
 | `trip-history.png` | Otwarte okno historii z zakończoną wyprawą i jej wynikiem. |
 | `account.png` | Formularz logowania lub zabezpieczania konta e-mailem i hasłem, bez wpisanych danych. |
-| `delete-account.png` | Okno potwierdzenia usunięcia konta z odliczaniem lub polem potwierdzenia. Nie zatwierdzaj usunięcia do zrzutu. |
+| `delete-account.png` | Okno potwierdzenia usunięcia profilu gościa z niezaznaczonym polem potwierdzenia i odliczaniem. |
 | `settings.png` | Ustawienia w jasnym motywie z widocznym wyborem wyglądu. |
 
-Jeśli chcesz pokazać więcej szczegółów, możesz dodać kolejne obrazy, np. rozliczenie kuponów albo wynik filtrowania po cechach, i dopisać je do galerii w głównym README.
+[Autorzy i licencje zdjęć grzybów](../../assets/images/grzybdex/CREDITS.md).

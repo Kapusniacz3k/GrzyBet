@@ -43,32 +43,32 @@ Niewysłany szkic zbioru zapisuje się na tym urządzeniu. Po utracie połączen
 
 ## Zrzuty ekranu
 
-Poniżej przygotowano **18 miejsc na zrzuty**. Zapisz pionowe obrazy PNG w folderze `docs/screenshots/`, używając nazw z [listy zrzutów](docs/screenshots/README.md). Po dodaniu plików pojawią się w galerii.
+Poniżej znajdziesz **18 zrzutów aplikacji** w widoku mobilnym, wykonanych w wersji webowej w rozdzielczości 390 × 844 px. Nicki, wyprawy i zbiory są przykładowe. [Opis zrzutów](docs/screenshots/README.md).
 
-<!-- Miejsca na rzeczywiste zrzuty aplikacji, nie gotowe screeny. Nazwy i proponowana zawartość: docs/screenshots/README.md. -->
+<!-- Rzeczywiste zrzuty aplikacji z danymi demonstracyjnymi. -->
 
 | Ekran główny | Pokój wyprawy | Typowanie |
 | --- | --- | --- |
-| <img src="docs/screenshots/home.png" alt="Miejsce na zrzut ekranu głównego" width="220"> | <img src="docs/screenshots/room.png" alt="Miejsce na zrzut pokoju wyprawy" width="220"> | <img src="docs/screenshots/predictions.png" alt="Miejsce na zrzut typowania" width="220"> |
+| <img src="docs/screenshots/home.png" alt="Zrzut ekranu głównego" width="220"> | <img src="docs/screenshots/room.png" alt="Zrzut pokoju wyprawy" width="220"> | <img src="docs/screenshots/predictions.png" alt="Zrzut typowania" width="220"> |
 
 | Podsumowanie typów | Zakłady i kursy | Kupon |
 | --- | --- | --- |
-| <img src="docs/screenshots/prediction-summary.png" alt="Miejsce na zrzut podsumowania typów i pewniaka" width="220"> | <img src="docs/screenshots/coupons.png" alt="Miejsce na zrzut zakładów i kursów" width="220"> | <img src="docs/screenshots/coupon-slip.png" alt="Miejsce na zrzut kuponu ze stawką" width="220"> |
+| <img src="docs/screenshots/prediction-summary.png" alt="Zrzut podsumowania typów i pewniaka" width="220"> | <img src="docs/screenshots/coupons.png" alt="Zrzut zakładów i kursów" width="220"> | <img src="docs/screenshots/coupon-slip.png" alt="Zrzut kuponu ze stawką" width="220"> |
 
 | Dodawanie zbioru | Ocena zgłoszeń | Wyniki wyprawy |
 | --- | --- | --- |
-| <img src="docs/screenshots/harvests.png" alt="Miejsce na zrzut dodawania zbioru" width="220"> | <img src="docs/screenshots/harvest-review.png" alt="Miejsce na zrzut oceny zgłoszeń przez gospodarza" width="220"> | <img src="docs/screenshots/results.png" alt="Miejsce na zrzut wyników i punktacji" width="220"> |
+| <img src="docs/screenshots/harvests.png" alt="Zrzut dodawania zbioru" width="220"> | <img src="docs/screenshots/harvest-review.png" alt="Zrzut oceny zgłoszeń przez gospodarza" width="220"> | <img src="docs/screenshots/results.png" alt="Zrzut wyników i punktacji" width="220"> |
 
 | Grzybedex i wyszukiwanie | Karta grzyba i jadalność | Filtrowanie po cechach |
 | --- | --- | --- |
-| <img src="docs/screenshots/grzybedex.png" alt="Miejsce na zrzut Grzybedexu z wyszukiwaniem" width="220"> | <img src="docs/screenshots/mushroom-details.png" alt="Miejsce na zrzut zdjęcia, jadalności, notatki i statystyk gatunku" width="220"> | <img src="docs/screenshots/trait-filter.png" alt="Miejsce na zrzut wyboru cech grzyba" width="220"> |
+| <img src="docs/screenshots/grzybedex.png" alt="Zrzut Grzybedexu z wyszukiwaniem" width="220"> | <img src="docs/screenshots/mushroom-details.png" alt="Zrzut zdjęcia, jadalności, notatki i statystyk gatunku" width="220"> | <img src="docs/screenshots/trait-filter.png" alt="Zrzut wyboru cech grzyba" width="220"> |
 
 | Profil i dorobek | Aktywne wyprawy | Historia wypraw |
 | --- | --- | --- |
-| <img src="docs/screenshots/profile.png" alt="Miejsce na zrzut profilu ze statystykami" width="220"> | <img src="docs/screenshots/active-trips.png" alt="Miejsce na zrzut okna aktywnych wypraw" width="220"> | <img src="docs/screenshots/trip-history.png" alt="Miejsce na zrzut okna historii wypraw" width="220"> |
+| <img src="docs/screenshots/profile.png" alt="Zrzut profilu ze statystykami" width="220"> | <img src="docs/screenshots/active-trips.png" alt="Zrzut okna aktywnych wypraw" width="220"> | <img src="docs/screenshots/trip-history.png" alt="Zrzut okna historii wypraw" width="220"> |
 
 | Logowanie i konto | Usuwanie konta | Ustawienia i jasny motyw |
 | --- | --- | --- |
-| <img src="docs/screenshots/account.png" alt="Miejsce na zrzut logowania lub zabezpieczania konta" width="220"> | <img src="docs/screenshots/delete-account.png" alt="Miejsce na zrzut potwierdzenia usunięcia konta" width="220"> | <img src="docs/screenshots/settings.png" alt="Miejsce na zrzut ustawień w jasnym motywie" width="220"> |
+| <img src="docs/screenshots/account.png" alt="Zrzut logowania lub zabezpieczania konta" width="220"> | <img src="docs/screenshots/delete-account.png" alt="Zrzut potwierdzenia usunięcia konta" width="220"> | <img src="docs/screenshots/settings.png" alt="Zrzut ustawień w jasnym motywie" width="220"> |
 
 [Autorzy i licencje zdjęć](assets/images/grzybdex/CREDITS.md)
