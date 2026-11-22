@@ -135,7 +135,7 @@ const createStyles = (c: AppColors) => StyleSheet.create({
   chapterContent: { paddingHorizontal: 14, paddingBottom: 18, gap: 12 },
   paragraph: { color: c.textSecondary, fontSize: 14, lineHeight: 22 },
   footer: { padding: 16, borderTopWidth: 1, borderTopColor: c.border },
-  done: { minHeight: 48, padding: 14, borderRadius: 12, backgroundColor: c.primary, alignItems: 'center', justifyContent: 'center' },
-  doneText: { color: c.onPrimary, fontSize: 15, fontWeight: '700' },
+  done: { minHeight: 48, padding: 14, borderRadius: 12, backgroundColor: c.actionGreen, alignItems: 'center', justifyContent: 'center' },
+  doneText: { color: c.onActionGreen, fontSize: 15, fontWeight: '700' },
   pressed: { opacity: 0.6 },
 });

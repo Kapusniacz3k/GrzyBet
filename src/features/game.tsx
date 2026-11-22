@@ -5,7 +5,7 @@ import { hide } from 'expo-splash-screen';
 import { ConnectionScreen } from '@/components/connection-screen';
 import { useAppTheme } from '@/hooks/use-app-theme';
 import {
-  joinRoom, saveTicket, answerQuestion, restartAnswers, submitHarvest, reviewHarvest, transitionRoom,
+  joinRoom, saveTicket, answerQuestion, restartAnswers, submitHarvest, reviewHarvest, transitionRoom, cancelRoom, leaveLobby,
   type Room, type RoomCreation,
 } from './domain';
 import { CURRENT_COUPON_VERSION, placeCoupon, finishCoupons } from './coupons';
@@ -130,6 +130,8 @@ function LocalGameProvider({ children }: { children: ReactNode }) {
     begin: async id => change(id, r => transitionRoom(r, 'begin', CURRENT_USER)),
     start: async id => change(id, r => transitionRoom(r, 'start', CURRENT_USER)),
     finish: async id => change(id, r => transitionRoom(r, 'finish', CURRENT_USER)),
+    cancel: async id => change(id, r => cancelRoom(r, CURRENT_USER)),
+    leave: async id => change(id, r => leaveLobby(r, CURRENT_USER)),
     addHarvest: async (id, data) => change(id, r => submitHarvest(r, {
       ...data, id: Date.now().toString(36) + Math.random().toString(36).slice(2, 8),
       member: CURRENT_USER, createdAt: new Date().toISOString(), status: 'pending',

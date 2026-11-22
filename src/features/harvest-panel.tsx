@@ -9,13 +9,36 @@ import { discardPhoto, pickPhoto, type PhotoSource } from './photos';
 import { Button, Card, Copy, Field, Label, Message } from './ui';
 import { SpeciesPicker } from './species-picker';
 import { speciesLabel } from './mushroom-species';
+import { useHarvestDraft } from './use-harvest-draft';
 
 function Photo({ uri }: { uri: string }) {
   const styles = useThemedStyles(createStyles);
+  const { loadPhoto } = useGame();
+  const remote = uri.startsWith('rooms/');
+  const [source, setSource] = useState(remote ? '' : uri);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
   const [failed, setFailed] = useState(false);
-  if (!uri) return <Copy>Wczytywanie zdjęcia…</Copy>;
-  if (failed) return <Copy>Nie można odczytać zdjęcia. Plik mógł zostać usunięty z urządzenia.</Copy>;
-  return <Image source={{ uri }} contentFit="contain" accessibilityLabel="Zdjęcie zgłoszonego zbioru" onError={() => setFailed(true)} style={styles.photo} />;
+  const mounted = useRef(true);
+  const inFlight = useRef(false);
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
+  async function open() {
+    if (!loadPhoto || inFlight.current) return;
+    inFlight.current = true; setLoading(true); setError('');
+    try {
+      const next = await loadPhoto(uri, failed);
+      if (mounted.current) { setSource(next); setFailed(false); }
+    } catch (e) { if (mounted.current) setError(e instanceof Error ? e.message : 'Nie udało się wczytać zdjęcia.'); }
+    finally { inFlight.current = false; if (mounted.current) setLoading(false); }
+  }
+  if (!uri) return <Copy>Zdjęcie jest niedostępne.</Copy>;
+  if (remote && (!source || failed)) return <View style={styles.photoEmpty}>
+    <Copy>{failed ? 'Nie udało się wyświetlić zdjęcia.' : 'Zdjęcie zgłoszonego zbioru'}</Copy>
+    <Button title={loading ? 'Wczytywanie zdjęcia…' : error || failed ? 'Ponów wczytywanie zdjęcia' : 'Pokaż zdjęcie'} secondary disabled={loading} onPress={() => { void open(); }} />
+    <Message text={error} />
+  </View>;
+  if (failed) return <Copy>Nie można odczytać zdjęcia. Wybierz je ponownie z galerii.</Copy>;
+  return <Image source={{ uri: source }} contentFit="contain" accessibilityLabel="Zdjęcie zgłoszonego zbioru" onError={() => setFailed(true)} style={styles.photo} />;
 }
 
 export function HarvestPanel({ room }: { room: Room }) {
@@ -40,7 +63,8 @@ export function HarvestPanel({ room }: { room: Room }) {
     </Card>}
     {room.phase === 'collecting'
       ? <HarvestForm key={room.id} roomId={room.id} />
-      : <Copy>{room.phase === 'finished' ? 'Wyprawa zakończona. Zgłoszenia i decyzje są dostępne tylko do odczytu.' : 'Dodawanie zbiorów będzie dostępne, gdy organizator rozpocznie zbieranie.'}</Copy>}
+      : <Copy>{room.phase === 'cancelled' ? 'Wyprawa anulowana. Zgłoszenia są dostępne tylko do odczytu.'
+        : room.phase === 'finished' ? 'Wyprawa zakończona. Zgłoszenia i decyzje są dostępne tylko do odczytu.' : 'Dodawanie zbiorów będzie dostępne, gdy organizator rozpocznie zbieranie.'}</Copy>}
     <View style={styles.sectionHeading}><Text style={styles.title}>Zgłoszenia ekipy</Text><Text style={styles.sectionCount}>{room.harvests.length}</Text></View>
     {room.harvests.length === 0 && <Card>
       <Label>{room.phase === 'finished' ? 'Brak zgłoszonych zbiorów' : 'Pierwszy zbiór przed Wami'}</Label>
@@ -51,27 +75,35 @@ export function HarvestPanel({ room }: { room: Room }) {
 }
 
 function HarvestForm({ roomId }: { roomId: string }) {
+  const { mode, userId } = useGame();
+  return <ScopedHarvestForm key={`${mode}:${userId}:${roomId}`} roomId={roomId} />;
+}
+
+function ScopedHarvestForm({ roomId }: { roomId: string }) {
   const styles = useThemedStyles(createStyles);
-  const { addHarvest, mode } = useGame();
-  const [kind, setKind] = useState('');
-  const [count, setCount] = useState('');
-  const [note, setNote] = useState('');
-  const [photo, setPhoto] = useState('');
+  const { addHarvest, mode, userId, offline } = useGame();
+  const { draft, ready, saving, error, session } = useHarvestDraft({ mode, userId, roomId });
+  const { species: kind, count, note, photoUri: photo } = draft;
   const [message, setMessage] = useState('');
-  const [activity, setActivity] = useState<'preparing' | 'sending' | null>(null);
+  const [activity, setActivity] = useState<'preparing' | 'sending' | 'clearing' | null>(null);
+  const [confirmDiscard, setConfirmDiscard] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
   const [progress, setProgress] = useState(0);
-  const busy = activity !== null;
-  const draftPhoto = useRef('');
+  const busy = activity !== null || !ready || submitted;
   const picking = useRef(false);
-  const submitting = useRef(false);
+  const submittedPhoto = useRef('');
   const mounted = useRef(true);
   useEffect(() => {
     mounted.current = true;
-    return () => { mounted.current = false; if (!submitting.current && draftPhoto.current) discardPhoto(draftPhoto.current); };
+    return () => { mounted.current = false; };
   }, []);
 
+  function change(patch: Partial<typeof draft>) {
+    void session.update(patch).catch(() => { /* The persisted-draft error is displayed below. */ });
+  }
+
   async function choose(source: PhotoSource) {
-    if (picking.current) return;
+    if (picking.current || !ready || submitted) return;
     picking.current = true;
     setActivity('preparing');
     setMessage('');
@@ -79,9 +111,8 @@ function HarvestForm({ roomId }: { roomId: string }) {
       const uri = await pickPhoto(source);
       if (!uri) return;
       if (!mounted.current) { discardPhoto(uri); return; }
-      if (draftPhoto.current) discardPhoto(draftPhoto.current);
-      draftPhoto.current = uri;
-      setPhoto(uri);
+      // The session retires the old file only once its replacement is persisted.
+      await session.update({ photoUri: uri });
     } catch (error) {
       if (mounted.current) setMessage(error instanceof Error ? error.message : 'Nie udało się otworzyć zdjęcia. Spróbuj ponownie.');
     } finally {
@@ -91,38 +122,57 @@ function HarvestForm({ roomId }: { roomId: string }) {
   }
 
   async function submit() {
-    if (picking.current) return;
+    if (picking.current || !ready || submittedPhoto.current || offline) return;
     if (!species.includes(kind)) { setMessage('Wybierz gatunek grzyba.'); return; }
     if (!/^\d+$/.test(count) || Number(count) < 1 || Number(count) > 999999) { setMessage('Podaj pełną liczbę sztuk od 1 do 999999.'); return; }
-    if (!draftPhoto.current) { setMessage('Dodaj zdjęcie przed wysłaniem zgłoszenia.'); return; }
+    if (!photo) { setMessage('Dodaj zdjęcie przed wysłaniem zgłoszenia.'); return; }
     picking.current = true;
-    submitting.current = true;
     setActivity('sending');
     setProgress(0);
     setMessage('');
     try {
-      await addHarvest(roomId, { species: kind, count: Number(count), photoUri: draftPhoto.current, note: note.trim() },
+      await session.flush();
+      await addHarvest(roomId, { species: kind, count: Number(count), photoUri: photo, note: note.trim() },
         percent => { if (mounted.current) setProgress(percent); });
-      // The room now owns the photo. Draft cleanup must not delete it.
-      if (mode === 'online') discardPhoto(draftPhoto.current);
-      draftPhoto.current = '';
+      submittedPhoto.current = photo;
+      if (mounted.current) setSubmitted(true);
+      // A local submitted room owns the copy; online submissions own their uploaded copy.
+      await session.clear({ preservePhoto: mode === 'local' ? photo : undefined });
+      submittedPhoto.current = '';
       if (mounted.current) {
-        setPhoto(''); setCount(''); setNote(''); setKind('');
+        setSubmitted(false);
         setMessage('Zgłoszenie zapisane. Czeka na decyzję organizatora.');
       }
     } catch (error) {
-      if (mounted.current) setMessage(error instanceof Error ? error.message : 'Nie udało się zapisać zgłoszenia. Wyślij je ponownie.');
+      if (mounted.current) setMessage(submittedPhoto.current
+        ? 'Zgłoszenie zostało wysłane. Pozostało usunięcie szkicu — nie wysyłaj go drugi raz.'
+        : error instanceof Error ? error.message : 'Nie udało się zapisać zgłoszenia. Szkic pozostaje do ponowienia.');
     } finally {
-      picking.current = false; submitting.current = false;
+      picking.current = false;
       if (mounted.current) setActivity(null);
-      else if (draftPhoto.current) discardPhoto(draftPhoto.current);
     }
+  }
+
+  async function clearDraft() {
+    if (picking.current) return;
+    picking.current = true;
+    setActivity('clearing');
+    try {
+      // Explicit reset removes the saved version even if quota prevented the latest edit.
+      // Cleanup after submission stays conditional so it cannot erase a newer draft.
+      await session.clear({ preservePhoto: mode === 'local' ? submittedPhoto.current : undefined, force: !submittedPhoto.current });
+      submittedPhoto.current = '';
+      if (mounted.current) { setSubmitted(false); setConfirmDiscard(false); setMessage('Szkic usunięty.'); }
+    } catch { /* Keep the draft and expose the session error for retry. */ }
+    finally { picking.current = false; if (mounted.current) setActivity(null); }
   }
 
   return <Card>
     <View style={styles.formHeading}><Label>Dodaj zbiór</Label><Copy>Jeden gatunek na zgłoszenie.</Copy></View>
-    <View style={styles.fieldGroup}><Copy>Gatunek</Copy><SpeciesPicker value={kind} onChange={setKind} disabled={busy} /></View>
-    <Field label="Liczba sztuk" value={count} onChangeText={setCount} keyboardType="number-pad" maxLength={6} editable={!busy} placeholder="np. 12" />
+    {!ready && !error && <Copy>Wczytywanie zapisanego szkicu…</Copy>}
+    {ready && <Text style={styles.meta}>{saving ? 'Zapisywanie szkicu…' : error ? 'Szkic wymaga ponowienia zapisu.' : 'Szkic zapisuje się na tym urządzeniu.'}</Text>}
+    <View style={styles.fieldGroup}><Copy>Gatunek</Copy><SpeciesPicker value={kind} onChange={value => change({ species: value })} disabled={busy} /></View>
+    <Field label="Liczba sztuk" value={count} onChangeText={value => change({ count: value })} keyboardType="number-pad" maxLength={6} editable={!busy} placeholder="np. 12" />
     <View style={styles.photoSection}>
       <Text style={styles.title}>Zdjęcie zbioru</Text>
       {photo ? <Photo key={photo} uri={photo} /> : <View style={styles.photoEmpty}><Text style={styles.emptyTitle}>Dodaj zdjęcie</Text><Text style={styles.emptyCopy}>Pokaż cały zbiór tak, żeby można było policzyć grzyby.</Text></View>}
@@ -133,12 +183,22 @@ function HarvestForm({ roomId }: { roomId: string }) {
       <Text style={styles.meta}>Zdjęcie jest wymagane. Zmniejszymy je przed wysłaniem.</Text>
       {Platform.OS === 'web' && <Text style={styles.meta}>JPG, PNG lub WebP do 20 MB. Dostępność aparatu zależy od urządzenia.</Text>}
     </View>
-    <Field label="Notatka · opcjonalnie" value={note} onChangeText={setNote} maxLength={300} multiline editable={!busy} placeholder="Do 300 znaków" />
+    <Field label="Notatka · opcjonalnie" value={note} onChangeText={value => change({ note: value })} maxLength={300} multiline editable={!busy} placeholder="Do 300 znaków" />
     {activity === 'preparing' && <Message text="Przygotowywanie zdjęcia…" />}
     <Message text={message} />
+    <Message text={error} />
+    {offline && <Message text="Brak połączenia. Szkic zostaje na urządzeniu; wyślesz go po odzyskaniu sieci." />}
+    {!!error && !submitted && <Button title={ready ? 'Ponów zapis szkicu' : 'Ponów odczyt szkicu'} secondary disabled={activity !== null}
+      onPress={() => { void (ready ? session.flush() : session.load()).catch(() => {}); }} />}
     <Button title={activity === 'sending'
       ? mode === 'online' && progress < 100 ? `Wysyłanie zdjęcia… ${progress}%` : 'Zapisywanie zgłoszenia…'
-      : 'Wyślij zgłoszenie'} onPress={() => { void submit(); }} disabled={busy} />
+      : 'Wyślij zgłoszenie'} onPress={() => { void submit(); }} disabled={busy || offline} />
+    {submitted ? <Button title="Usuń wysłany szkic" secondary disabled={activity !== null} onPress={() => { void clearDraft(); }} />
+      : confirmDiscard ? <>
+        <Copy>Usunąć niewysłane dane i zdjęcie z tego szkicu?</Copy>
+        <Button title="Tak, usuń szkic" secondary disabled={activity !== null} onPress={() => { void clearDraft(); }} />
+        <Button title="Zachowaj szkic" secondary disabled={activity !== null} onPress={() => setConfirmDiscard(false)} />
+      </> : <Button title="Wyczyść szkic" secondary disabled={activity !== null || (!ready && !error)} onPress={() => setConfirmDiscard(true)} />}
   </Card>;
 }
 
@@ -148,7 +208,8 @@ function HarvestCard({ room, harvest }: { room: Room; harvest: Room['harvests'][
   const [reason, setReason] = useState('');
   const [message, setMessage] = useState('');
   const canReview = room.host === userId && room.phase === 'collecting' && harvest.status === 'pending';
-  const status = { pending: 'Oczekuje na weryfikację', approved: 'Zatwierdzone', rejected: 'Odrzucone' }[harvest.status];
+  const status = harvest.status === 'pending' && room.phase === 'cancelled' ? 'Nierozpatrzone · wyprawa anulowana'
+    : { pending: 'Oczekuje na weryfikację', approved: 'Zatwierdzone', rejected: 'Odrzucone' }[harvest.status];
   async function decide(decision: 'approved' | 'rejected') {
     if (decision === 'rejected' && !reason.trim()) { setMessage('Podaj powód odrzucenia, aby uczestnik wiedział, co poprawić.'); return; }
     try { await review(room.id, harvest.id, decision, reason.trim()); setMessage('Decyzja zapisana.'); }

@@ -1,10 +1,10 @@
-import type { Room } from './domain';
+import { isTerminalRoom, type Room } from './domain.ts';
 
 export const accountDeletionDelay = 5000;
-export const activeTripDeletionMessage = 'Masz aktywną wyprawę. Najpierw zakończ wszystkie swoje wyprawy lub poproś ich organizatorów o zakończenie. Potem możesz usunąć konto.';
+export const activeTripDeletionMessage = 'Masz aktywną wyprawę. Opuść lobby albo zakończ lub anuluj własne wyprawy. W pozostałych poproś organizatora o zakończenie lub anulowanie.';
 
 export function hasActiveTrips(rooms: readonly Pick<Room, 'members' | 'phase'>[], userId: string): boolean {
-  return rooms.some(room => room.members.includes(userId) && room.phase !== 'finished');
+  return rooms.some(room => room.members.includes(userId) && !isTerminalRoom(room));
 }
 
 export function deletionSecondsRemaining(openedAt: number, now: number): number {

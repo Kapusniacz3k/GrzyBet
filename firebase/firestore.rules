@@ -83,7 +83,7 @@ service cloud.firestore {
         && request.resource.data.predictionStartedAt == null
         && getAfter(/databases/$(database)/documents/codes/$(request.resource.data.code)).data.roomId == id
         && existsAfter(participantPath(id, uid()));
-      allow update: if signed() && (joining() || confirming() || changingPhase() || changingPending());
+      allow update: if signed() && (joining() || leaving() || confirming() || changingPhase() || changingPending());
       allow delete: if false;
 
       function joining() {
@@ -100,6 +100,12 @@ service cloud.firestore {
           && (resource.data.get('gameMode', 'classic') == 'coupons'
             || (!exists(ticketPath(id, uid())) && existsAfter(ticketPath(id, uid()))));
       }
+      function leaving() {
+        return resource.data.phase == 'lobby' && uid() in resource.data.memberIds && resource.data.host != uid()
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['memberIds'])
+          && request.resource.data.memberIds == resource.data.memberIds.removeAll([uid()])
+          && !existsAfter(participantPath(id, uid()));
+      }
       function changingPhase() {
         return resource.data.host == uid()
           && (
@@ -112,6 +118,9 @@ service cloud.firestore {
             || (resource.data.phase == 'collecting' && request.resource.data.phase == 'finished'
               && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['phase', 'finishedAt'])
               && resource.data.pendingCount == 0 && request.resource.data.finishedAt == request.time)
+            || (resource.data.phase in ['lobby', 'predicting', 'collecting'] && request.resource.data.phase == 'cancelled'
+              && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['phase', 'finishedAt'])
+              && request.resource.data.finishedAt == request.time)
           );
       }
       function changingPending() {
@@ -140,7 +149,8 @@ service cloud.firestore {
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['progress'])
           && ((existsAfter(answerPath(id, uid())) && request.resource.data.progress == getAfter(answerPath(id, uid())).data.values.keys().size())
             || (!existsAfter(answerPath(id, uid())) && request.resource.data.progress == 0));
-        allow delete: if false;
+        allow delete: if signed() && user == uid() && room(id).host != uid() && room(id).phase == 'lobby'
+          && !(uid() in afterRoom(id).memberIds);
       }
       match /answers/{user} {
         allow get: if member(id) && user == uid();
@@ -157,8 +167,8 @@ service cloud.firestore {
           && (existsAfter(ticketPath(id, uid())) || getAfter(participantPath(id, uid())).data.progress == 0);
       }
       match /tickets/{user} {
-        allow get: if member(id) && (user == uid() || room(id).phase in ['collecting', 'finished']);
-        allow list: if member(id) && room(id).phase in ['collecting', 'finished'];
+        allow get: if member(id) && (user == uid() || room(id).phase in ['collecting', 'finished', 'cancelled']);
+        allow list: if member(id) && room(id).phase in ['collecting', 'finished', 'cancelled'];
         allow create: if member(id) && user == uid() && room(id).phase == 'predicting' && room(id).get('gameMode', 'classic') == 'classic'
           && request.resource.data.keys().hasOnly(['values'])
           && validConfirmedTicket()

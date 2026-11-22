@@ -6,7 +6,7 @@ import { useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { MotionPressable as Pressable, MotionView } from '@/components/motion';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { ArrowIcon, GrzybdexIcon, HashIcon, HistoryIcon, InfoIcon, PeopleIcon, PlusIcon, SettingsIcon, SproutIcon } from '@/components/grzybet-icons';
+import { ArrowIcon, ChevronIcon, GrzybdexIcon, HashIcon, HistoryIcon, InfoIcon, PeopleIcon, PlusIcon, SettingsIcon, SproutIcon } from '@/components/grzybet-icons';
 import { species, statusLabel, useGame } from './game';
 import { calculateGrzybdex } from './grzybdex-stats';
 import { homeSummary } from './home-summary';
@@ -20,7 +20,8 @@ export function HomeScreen() {
   const { rooms, userId, displayName } = useGame();
   const greeting = displayName.trim() ? `Witaj, ${displayName.trim()}` : 'Witaj';
   const [showHelp, setShowHelp] = useState(false);
-  const { active, recent } = useMemo(() => homeSummary(rooms, userId), [rooms, userId]);
+  const [activeExpanded, setActiveExpanded] = useState(false);
+  const { active, activeTrips, recent } = useMemo(() => homeSummary(rooms, userId), [rooms, userId]);
   const discovered = useMemo(() => calculateGrzybdex(rooms, userId, species).filter(item => item.total > 0).length, [rooms, userId]);
   const openRoom = (id: string) => router.push({ pathname: '/room/[id]', params: { id } });
   const openCollection = () => router.dismissTo('/grzybdex');
@@ -59,6 +60,24 @@ export function HomeScreen() {
           </View>
           <Text style={styles.roomName}>Zaplanuj wyprawę</Text>
           <Text style={styles.copy}>Stwórz pokój dla ekipy lub dołącz kodem do znajomych.</Text>
+        </View>}
+
+        {activeTrips.length > 1 && <View style={styles.activeTrips}>
+          <Pressable accessibilityRole="button" accessibilityLabel="Aktywne wyprawy" aria-expanded={activeExpanded}
+            accessibilityHint={activeExpanded ? 'Zwiń listę wypraw' : 'Pokaż wszystkie aktywne wyprawy'}
+            onPress={() => setActiveExpanded(current => !current)}
+            style={({ pressed }) => [styles.activeHeader, pressed && styles.pressed]}>
+            <PeopleIcon size={17} color={colors.textMuted} />
+            <Text style={styles.activeTitle}>Aktywne wyprawy</Text><Text style={styles.smallCopy}>{activeTrips.length}</Text>
+            <ChevronIcon size={16} direction={activeExpanded ? 'up' : 'down'} color={colors.textMuted} />
+          </Pressable>
+          {activeExpanded && <View>{activeTrips.map(room => <Pressable key={room.id} accessibilityRole="button"
+            accessibilityLabel={`Otwórz wyprawę ${room.name}, ${statusLabel(room)}`} onPress={() => openRoom(room.id)}
+            style={({ pressed }) => [styles.activeItem, pressed && styles.pressed]}>
+            <View style={styles.activeCopy}><Text style={styles.historyName}>{room.name}</Text>
+              <Text style={styles.historyMeta}>{statusLabel(room)} · Uczestnicy: {room.members.length}</Text></View>
+            <ArrowIcon size={16} direction="right" color={colors.textMuted} />
+          </Pressable>)}</View>}
         </View>}
 
         <View style={styles.actions}>
@@ -145,6 +164,12 @@ const createStyles = (c: AppColors) => StyleSheet.create({
   emptyIcon: { width: 36, height: 36, borderRadius: 12, backgroundColor: c.surfaceRaised,
     alignItems: 'center', justifyContent: 'center' },
   copy: { color: c.textMuted, fontSize: 13, lineHeight: 21 },
+  activeTrips: { borderBottomWidth: 1, borderBottomColor: c.border },
+  activeHeader: { minHeight: 48, flexDirection: 'row', alignItems: 'center', gap: 8 },
+  activeTitle: { flex: 1, minWidth: 0, color: c.textMuted, fontSize: 12, lineHeight: 18, fontWeight: '500' },
+  activeItem: { minHeight: 58, paddingVertical: 12, borderTopWidth: 1, borderTopColor: c.border,
+    flexDirection: 'row', alignItems: 'center', gap: 12 },
+  activeCopy: { flex: 1, minWidth: 0, gap: 4 },
   actions: { flexDirection: 'row', gap: 12 },
   shortcut: { flex: 1, minWidth: 0, minHeight: 88, borderColor: c.border, borderWidth: 1, borderRadius: 14,
     padding: 14, justifyContent: 'center', alignItems: 'flex-start', gap: 10 },

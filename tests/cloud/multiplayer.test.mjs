@@ -3,13 +3,15 @@ const require = createRequire(import.meta.url);
 import assert from 'node:assert/strict';
 import test, { after } from 'node:test';
 const { initializeApp, deleteApp } = require('firebase/app');
-const { initializeAuth, inMemoryPersistence, connectAuthEmulator, signInAnonymously } = require('firebase/auth');
-const { connectFirestoreEmulator, getFirestore, getDoc, getDocs, deleteDoc, doc, collection, query, where, updateDoc, setDoc, runTransaction, serverTimestamp, Timestamp, terminate, setLogLevel } = require('firebase/firestore');
+const { initializeAuth, inMemoryPersistence, connectAuthEmulator, signInAnonymously, updateCurrentUser } = require('firebase/auth');
+const { connectFirestoreEmulator, getFirestore, getDoc, getDocs, deleteDoc, doc, collection, query, where, updateDoc, setDoc, runTransaction, serverTimestamp, Timestamp, terminate, setLogLevel, writeBatch, disableNetwork, enableNetwork } = require('firebase/firestore');
 const { connectStorageEmulator, getStorage, getBytes, ref, uploadBytes, deleteObject } = require('firebase/storage');
 const { CloudRepository, asRoom, roomCode, uploadHarvestPhoto, submitHarvestWithPhoto, readHarvestPhoto } = require('../../src/services/cloud-repository.ts');
 const { calculateResults } = require('../../src/features/domain.ts');
 const { calculateCouponResults } = require('../../src/features/coupons.ts');
 const { species } = require('../../src/features/mushroom-species.ts');
+const { assertAccountDeletionAllowed } = require('../../src/services/account-removal.ts');
+const { createOnlineRoomCache } = require('../../src/services/online-room-cache.ts');
 
 setLogLevel('silent');
 const clients = [];
@@ -52,6 +54,99 @@ async function denied(promise) {
   await assert.rejects(promise, error => ['permission-denied','storage/unauthorized'].includes(error.code), 'security rules must reject this write/read');
 }
 const png = new Uint8Array(Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a4XkAAAAASUVORK5CYII=', 'base64'));
+
+test('leaving a lobby is atomic, self-only, allows rejoining, and cannot remove the host or unblock an already started trip', { timeout: 30000 }, async () => {
+  const host = await client('Gospodarz'); const guest = await client('Uczestnik'); const outsider = await client('Inny gracz');
+  const id = await host.repo.create({ name: 'Opuszczanie lobby', limit: 3 }); const code = await roomCode(host.db, id);
+  await guest.repo.join(code);
+  const room = doc(guest.db, 'rooms', id); const member = doc(guest.db, 'rooms', id, 'members', guest.user.uid);
+  await denied(deleteDoc(member));
+  await denied(updateDoc(room, { memberIds: [host.user.uid] }));
+  const kick = writeBatch(host.db); kick.update(doc(host.db, 'rooms', id), { memberIds: [host.user.uid] }); kick.delete(doc(host.db, 'rooms', id, 'members', guest.user.uid));
+  await denied(kick.commit());
+  await assert.rejects(host.repo.leave(id)); await assert.rejects(outsider.repo.leave(id));
+  await guest.repo.leave(id);
+  assert.deepEqual((await getDoc(doc(host.db, 'rooms', id))).data().memberIds, [host.user.uid]);
+  assert.equal((await getDoc(doc(host.db, 'rooms', id, 'members', guest.user.uid))).exists(), false);
+  await assertAccountDeletionAllowed(guest.db, guest.user.uid);
+  await guest.repo.join(code);
+  assert.equal((await getDoc(doc(host.db, 'rooms', id, 'members', guest.user.uid))).data().progress, 0);
+  await host.repo.transition(id, 'begin'); await assert.rejects(guest.repo.leave(id));
+  const late = writeBatch(guest.db); late.update(room, { memberIds: [host.user.uid] }); late.delete(member); await denied(late.commit());
+});
+
+test('only hosts cancel any active stage in either mode, preserving approved and pending harvests while blocking later game writes', { timeout: 60000 }, async () => {
+  const host = await client('Anulujący'); const guest = await client('Drugi gracz');
+  for (const mode of ['classic', 'coupons']) for (const phase of ['lobby', 'predicting', 'collecting']) {
+    const id = await host.repo.create({ name: `Anulowanie ${mode} ${phase}`, limit: 2, gameMode: mode });
+    await guest.repo.join(await roomCode(host.db, id));
+    if (phase !== 'lobby') await host.repo.transition(id, 'begin');
+    if (phase === 'collecting') {
+      for (const c of [host, guest]) {
+        if (mode === 'coupons') await c.repo.finishCoupons(id);
+        else { const values = prediction(host.user.uid); await fill(c, id, values); await c.repo.confirm(id, values); }
+      }
+      await host.repo.transition(id, 'start');
+      await host.repo.submit(id, 'approved-one', { species: 'Borowik', count: 2, note: '', photoUri: 'file:///fixture.jpg' });
+      await host.repo.review(id, 'approved-one', 'approved');
+      await guest.repo.submit(id, 'pending-one', { species: 'Kurka', count: 3, note: '', photoUri: 'file:///fixture.jpg' });
+    }
+    await assert.rejects(guest.repo.cancel(id));
+    await denied(updateDoc(doc(guest.db, 'rooms', id), { phase: 'cancelled', finishedAt: serverTimestamp() }));
+    await host.repo.cancel(id);
+    const cancelled = await observe(guest.repo, id, room => room.phase === 'cancelled');
+    assert.ok(cancelled.finishedAt); assert.deepEqual(calculateResults(cancelled), []);
+    if (phase === 'collecting') assert.deepEqual(cancelled.harvests.map(h => h.status).sort(), ['approved', 'pending']);
+    const saved = new Map(); const cache = createOnlineRoomCache({ async getItem(key) { return saved.get(key) ?? null; }, async setItem(key, value) { saved.set(key, value); } });
+    await cache.save(guest.user.uid, [cancelled]); assert.deepEqual(await cache.load(guest.user.uid), [cancelled]);
+    await assert.rejects(host.repo.cancel(id)); await assert.rejects(guest.repo.leave(id));
+    await assert.rejects(host.repo.transition(id, 'begin'));
+    await denied(updateDoc(doc(host.db, 'rooms', id), { phase: 'predicting' }));
+    await assert.rejects(host.repo.submit(id, 'late-one', { species: 'Borowik', count: 1, note: '', photoUri: 'file:///late.jpg' }));
+    if (phase === 'collecting') await assert.rejects(host.repo.review(id, 'pending-one', 'approved'));
+  }
+  await assertAccountDeletionAllowed(host.db, host.user.uid); await assertAccountDeletionAllowed(guest.db, guest.user.uid);
+});
+
+test('a cold observer never publishes finished scores before all harvests and other players tickets have loaded', { timeout: 30000 }, async () => {
+  const host = await client('Wyniki'); const guest = await client('Współgracz');
+  const id = await host.repo.create({ name: 'Pełne wyniki po starcie', limit: 2 }); await guest.repo.join(await roomCode(host.db, id));
+  await host.repo.transition(id, 'begin');
+  for (const c of [host, guest]) { const values = { winner: host.user.uid, own: c === host ? 2 : 0, total: 2, species: 'Borowik' }; await fill(c, id, values); await c.repo.confirm(id, values); }
+  await host.repo.transition(id, 'start');
+  await host.repo.submit(id, 'cold-result', { species: 'Borowik', count: 2, photoUri: 'file:///fixture.jpg', note: '' });
+  await host.repo.review(id, 'cold-result', 'approved'); await host.repo.transition(id, 'finish');
+  const reader = await client('Nowy telefon'); await updateCurrentUser(reader.auth, host.user);
+  const repo = new CloudRepository(reader.db, host.user.uid, 'Wyniki'); const snapshots = [];
+  await new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error('Cold observer timeout')), 15000);
+    const stop = repo.observeRoom(id, room => {
+      snapshots.push(room);
+      if (room.phase === 'finished' && room.harvests.length === 1 && Object.keys(room.tickets).length === 2) { clearTimeout(timer); stop(); stops.delete(stop); resolve(); }
+    }, error => { clearTimeout(timer); reject(error); }); stops.add(stop);
+  });
+  assert.ok(snapshots.length);
+  for (const snapshot of snapshots) {
+    assert.equal(snapshot.phase, 'finished'); assert.equal(snapshot.harvests.length, 1); assert.equal(Object.keys(snapshot.tickets).length, 2);
+    assert.equal(calculateResults(snapshot).find(row => row.member === host.user.uid).mushrooms, 2);
+    assert.equal(calculateResults(snapshot).find(row => row.member === host.user.uid).points, 350);
+  }
+});
+
+test('connection metadata detects network loss and retries with the same account', { timeout: 30000 }, async () => {
+  const c = await client('Połączenie'); const uid = c.user.uid;
+  const id = await c.repo.create({ name: 'Synchronizacja sieci', limit: 2 }); const events = []; let latestIds;
+  const stop = c.repo.observeIds(ids => { latestIds = ids; }, error => { throw error; }, online => events.push(online)); stops.add(stop);
+  async function until(predicate) { const end = Date.now() + 10000; while (!predicate()) { if (Date.now() > end) assert.fail('Missing network event'); await new Promise(resolve => setTimeout(resolve, 10)); } }
+  await until(() => events.at(-1) === true && latestIds?.includes(id));
+  const afterInitialConnection = events.length;
+  await c.repo.transition(id, 'begin');
+  await until(() => events.at(-1) === true);
+  assert.ok(events.slice(afterInitialConnection).every(Boolean), 'a pending write must not invalidate unchanged room subscriptions');
+  await disableNetwork(c.db); await until(() => events.at(-1) === false);
+  await enableNetwork(c.db); await until(() => events.at(-1) === true);
+  assert.equal(c.auth.currentUser.uid, uid); assert.deepEqual(latestIds, [id]); stop(); stops.delete(stop);
+});
 
 test('virtual coupons share readiness and immutable budgets, stay private until the end, and settle identically on two clients', { timeout: 60000 }, async () => {
   const host = await client('Kupony host');

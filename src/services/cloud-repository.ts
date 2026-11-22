@@ -1,11 +1,11 @@
 import {
-  collection, deleteDoc, doc, getDoc, onSnapshot, query, runTransaction, serverTimestamp,
+  collection, deleteDoc, doc, getDoc, onSnapshot, onSnapshotsInSync, query, runTransaction, serverTimestamp,
   Timestamp, where, type Firestore, type Unsubscribe,
 } from 'firebase/firestore';
 import { deleteObject, getBytes, getMetadata, ref, uploadBytesResumable, type FirebaseStorage } from 'firebase/storage';
 import type { UploadPhoto } from './photo-upload';
 import {
-  answerQuestion, restartAnswers, saveTicket, submitHarvest, transitionRoom,
+  answerQuestion, restartAnswers, saveTicket, submitHarvest, transitionRoom, cancelRoom, leaveLobby,
   type Harvest, type Phase, type QuestionKey, type Room, type RoomCreation, type Ticket,
 } from '../features/domain';
 import { CURRENT_COUPON_VERSION, placeCoupon, finishCoupons, type CouponPicks, type CouponWallet } from '../features/coupons';
@@ -83,6 +83,25 @@ export class CloudRepository {
       tx.update(this.roomRef(id), { memberIds: [...room.memberIds, this.uid] });
       tx.set(this.memberRef(id), { name: this.name, progress: 0, joinedAt: serverTimestamp() });
       return id;
+    });
+  }
+
+  async cancel(id: string): Promise<void> {
+    await runTransaction(this.db, async tx => {
+      const snapshot = await tx.get(this.roomRef(id));
+      if (!snapshot.exists()) throw new Error('Nie znaleziono pokoju.');
+      cancelRoom(asRoom(id, snapshot.data() as CloudRoom, this.uid), this.uid);
+      tx.update(this.roomRef(id), { phase: 'cancelled', finishedAt: serverTimestamp() });
+    });
+  }
+
+  async leave(id: string): Promise<void> {
+    await runTransaction(this.db, async tx => {
+      const snapshot = await tx.get(this.roomRef(id));
+      if (!snapshot.exists()) throw new Error('Nie znaleziono pokoju.');
+      const updated = leaveLobby(asRoom(id, snapshot.data() as CloudRoom, this.uid), this.uid);
+      tx.update(this.roomRef(id), { memberIds: updated.members });
+      tx.delete(this.memberRef(id));
     });
   }
 
@@ -190,13 +209,19 @@ export class CloudRepository {
     });
   }
 
-  observeIds(next: (ids: string[]) => void, error: (e: Error) => void): Unsubscribe {
+  observeIds(next: (ids: string[]) => void, error: (e: Error) => void, connection?: (online: boolean) => void): Unsubscribe {
     return onSnapshot(query(collection(this.db, 'rooms'), where('memberIds', 'array-contains', this.uid)), { includeMetadataChanges: true },
-      snapshot => { if (!snapshot.metadata.fromCache) next(snapshot.docs.map(item => item.id)); }, error);
+      snapshot => {
+        // Local pending writes do not mean the transport disconnected. Treating them as
+        // offline would invalidate unrelated rooms which receive no new snapshot.
+        connection?.(!snapshot.metadata.fromCache);
+        if (!snapshot.metadata.fromCache && !snapshot.metadata.hasPendingWrites) next(snapshot.docs.map(item => item.id));
+      }, error);
   }
 
   observeRoom(id: string, next: (room: Room) => void, error: (e: Error) => void): Unsubscribe {
     let publicRoom: CloudRoom | undefined;
+    let publicRoomReady = false;
     let names: Record<string, string> = {};
     let progress: Record<string, number> = {};
     let answers: Partial<Ticket> = {};
@@ -210,62 +235,90 @@ export class CloudRepository {
     let ownAnswersReady = false;
     let ownTicketReady = false;
     let membersReady = false;
+    let harvestsReady = false;
+    let allTicketsReady = false;
     let allTickets: Unsubscribe | undefined;
-    function emit() {
-      if (!publicRoom || !ownAnswersReady || !ownTicketReady || !membersReady) return;
+    let dirty = false;
+    function emit() { dirty = true; }
+    function publish() {
+      if (!dirty || !publicRoomReady || !publicRoom || !ownAnswersReady || !ownTicketReady || !membersReady || !harvestsReady) return;
       if (!publicRoom.memberIds.every(member => !!names[member])) return;
       const coupons = publicRoom.gameMode === 'coupons';
       if (coupons && (!ownCouponsReady || (publicRoom.phase === 'finished' && !allCouponsReady))) return;
+      if (!coupons && ['collecting', 'finished', 'cancelled'].includes(publicRoom.phase) && !allTicketsReady) return;
+      if (!coupons && ['collecting', 'finished'].includes(publicRoom.phase) && publicRoom.readyIds.some(member => !tickets[member])) return;
+      if (publicRoom.pendingCount !== harvests.filter(item => item.status === 'pending').length) return;
+      if (publicRoom.lastHarvestId && !harvests.some(item => item.id === publicRoom!.lastHarvestId)) return;
       if (!coupons && publicRoom.readyIds.includes(self.uid) && !tickets[self.uid]) return;
       if (!coupons && !tickets[self.uid] && (progress[self.uid] ?? 0) > Object.keys(answers).length) return;
+      dirty = false;
       next({ ...asRoom(id, publicRoom, self.uid), names, progress, answers: { [self.uid]: answers }, tickets,
         ...(tickets[self.uid] ? { ticket: tickets[self.uid] } : {}), ...(coupons ? { couponBook } : {}), harvests });
     }
     const self = this;
     const stops = [
-      onSnapshot(this.roomRef(id), snapshot => {
+      onSnapshot(this.roomRef(id), { includeMetadataChanges: true }, snapshot => {
+        publicRoomReady = (!snapshot.metadata.fromCache && !snapshot.metadata.hasPendingWrites);
+        if (!publicRoomReady) return;
         if (!snapshot.exists()) return;
         publicRoom = snapshot.data() as CloudRoom;
         if (publicRoom.gameMode === 'coupons' && !ownCoupons) {
-          ownCoupons = onSnapshot(this.couponsRef(id), data => {
+          ownCoupons = onSnapshot(this.couponsRef(id), { includeMetadataChanges: true }, data => {
+            ownCouponsReady = (!data.metadata.fromCache && !data.metadata.hasPendingWrites);
+            if (!ownCouponsReady) return;
             if (data.exists()) couponBook = { ...couponBook, [self.uid]: data.data() as CouponWallet };
             ownCouponsReady = true; emit();
           }, error);
         }
         if (publicRoom.gameMode === 'coupons' && publicRoom.phase === 'finished' && !allCoupons) {
-          allCoupons = onSnapshot(collection(this.roomRef(id), 'coupons'), data => {
+          allCoupons = onSnapshot(collection(this.roomRef(id), 'coupons'), { includeMetadataChanges: true }, data => {
+            allCouponsReady = (!data.metadata.fromCache && !data.metadata.hasPendingWrites);
+            if (!allCouponsReady) return;
             couponBook = Object.fromEntries(data.docs.map(item => [item.id, item.data() as CouponWallet]));
             allCouponsReady = true; emit();
           }, error);
         }
-        if (publicRoom.gameMode !== 'coupons' && ['collecting', 'finished'].includes(publicRoom.phase) && !allTickets) {
-          allTickets = onSnapshot(collection(this.roomRef(id), 'tickets'), data => {
+        if (publicRoom.gameMode !== 'coupons' && ['collecting', 'finished', 'cancelled'].includes(publicRoom.phase) && !allTickets) {
+          allTickets = onSnapshot(collection(this.roomRef(id), 'tickets'), { includeMetadataChanges: true }, data => {
+            allTicketsReady = (!data.metadata.fromCache && !data.metadata.hasPendingWrites);
+            if (!allTicketsReady) return;
             tickets = Object.fromEntries(data.docs.map(item => [item.id, item.data().values]));
+            allTicketsReady = true;
             emit();
           }, error);
         }
         emit();
       }, error),
-      onSnapshot(collection(this.roomRef(id), 'members'), data => {
+      onSnapshot(collection(this.roomRef(id), 'members'), { includeMetadataChanges: true }, data => {
+        membersReady = (!data.metadata.fromCache && !data.metadata.hasPendingWrites);
+        if (!membersReady) return;
         names = Object.fromEntries(data.docs.map(item => [item.id, item.data().name]));
         progress = Object.fromEntries(data.docs.map(item => [item.id, item.data().progress]));
         membersReady = true;
         emit();
       }, error),
-      onSnapshot(this.answersRef(id), data => { answers = data.data()?.values ?? {}; ownAnswersReady = true; emit(); }, error),
-      onSnapshot(this.ticketRef(id), data => {
+      onSnapshot(this.answersRef(id), { includeMetadataChanges: true }, data => { ownAnswersReady = (!data.metadata.fromCache && !data.metadata.hasPendingWrites); if (!ownAnswersReady) return; answers = data.data()?.values ?? {}; emit(); }, error),
+      onSnapshot(this.ticketRef(id), { includeMetadataChanges: true }, data => {
+        ownTicketReady = (!data.metadata.fromCache && !data.metadata.hasPendingWrites);
+        if (!ownTicketReady) return;
         if (data.exists()) tickets = { ...tickets, [this.uid]: data.data().values };
         ownTicketReady = true; emit();
       }, error),
-      onSnapshot(collection(this.roomRef(id), 'harvests'), data => {
+      onSnapshot(collection(this.roomRef(id), 'harvests'), { includeMetadataChanges: true }, data => {
+        harvestsReady = (!data.metadata.fromCache && !data.metadata.hasPendingWrites);
+        if (!harvestsReady) return;
         harvests = data.docs.map(item => {
           const h = item.data() as CloudHarvest;
-          return { ...h, id: item.id, photoUri: h.photoPath, createdAt: h.createdAt?.toDate().toISOString() ?? new Date().toISOString() };
+          const { photoPath, createdAt, rejectionReason, ...values } = h;
+          return { ...values, id: item.id, photoUri: photoPath, createdAt: createdAt?.toDate().toISOString() ?? new Date().toISOString(),
+            ...(rejectionReason ? { rejectionReason } : {}) };
         }).sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+        harvestsReady = true;
         emit();
       }, error),
     ];
-    return () => { stops.forEach(stop => stop()); allTickets?.(); ownCoupons?.(); allCoupons?.(); };
+    const stopSync = onSnapshotsInSync(this.db, publish);
+    return () => { stopSync(); stops.forEach(stop => stop()); allTickets?.(); ownCoupons?.(); allCoupons?.(); };
   }
 }
 

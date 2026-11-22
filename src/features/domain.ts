@@ -2,7 +2,7 @@ import { species } from './mushroom-species.ts';
 import type { CouponWallet } from './coupons';
 export { species };
 
-export type Phase = 'lobby' | 'predicting' | 'collecting' | 'finished';
+export type Phase = 'lobby' | 'predicting' | 'collecting' | 'finished' | 'cancelled';
 export type GameMode = 'classic' | 'coupons';
 export type RoomCreation = { name: string; limit: number; gameMode?: GameMode };
 export const questionKeys = ['winner', 'own', 'total', 'species'] as const;
@@ -88,7 +88,12 @@ export function isClosed(room: Room) {
   return room.phase !== 'predicting';
 }
 
+export function isTerminalRoom(room: Pick<Room, 'phase'>) {
+  return room.phase === 'finished' || room.phase === 'cancelled';
+}
+
 export function statusLabel(room: Room) {
+  if (room.phase === 'cancelled') return 'Wyprawa anulowana';
   if (room.phase === 'finished') return 'Zakończono';
   if (room.phase === 'collecting') return 'Poszukiwania w toku';
   if (room.phase === 'lobby') return 'Lobby · czekamy na start';
@@ -182,7 +187,7 @@ export function transitionRoom(
   now = Date.now(),
 ): Room {
   assertHost(room, actor);
-  if (room.phase === 'finished') throw new Error('Ta wyprawa jest już zakończona.');
+  if (isTerminalRoom(room)) throw new Error('Ta wyprawa jest już zakończona lub anulowana.');
   if (action === 'begin' && room.phase === 'lobby') return { ...room, phase: 'predicting', closed: true, predictionStartedAt: new Date(now).toISOString() };
   if (action === 'start' && room.phase === 'predicting') {
     if (!everyoneReady(room)) throw new Error(room.gameMode === 'coupons' ? 'Poczekaj, aż wszyscy zakończą stawianie kuponów.' : 'Poczekaj, aż wszyscy uczestnicy zakończą pytania.');
@@ -195,6 +200,25 @@ export function transitionRoom(
     return { ...room, phase: 'finished', closed: true, finishedAt: new Date(now).toISOString() };
   }
   throw new Error('Ta czynność nie jest dostępna na obecnym etapie wyprawy.');
+}
+
+export function cancelRoom(room: Room, actor: string, now = Date.now()): Room {
+  assertHost(room, actor);
+  if (isTerminalRoom(room)) throw new Error('Ta wyprawa jest już zakończona lub anulowana.');
+  return { ...room, phase: 'cancelled', closed: true, finishedAt: new Date(now).toISOString() };
+}
+
+export function leaveLobby(room: Room, actor: string): Room {
+  assertMember(room, actor);
+  if (room.phase !== 'lobby') throw new Error('Lobby można opuścić tylko przed rozpoczęciem gry.');
+  if (room.host === actor) throw new Error('Organizator może anulować wyprawę zamiast opuszczać lobby.');
+  const without = <T,>(values: Record<string, T> = {}) => Object.fromEntries(Object.entries(values).filter(([id]) => id !== actor));
+  return { ...room, members: room.members.filter(id => id !== actor), joined: actor === 'Kuba' ? false : room.joined,
+    tickets: without(room.tickets), answers: without(room.answers),
+    ...(actor === 'Kuba' ? { ticket: undefined } : {}),
+    ...(room.names ? { names: without(room.names) } : {}),
+    ...(room.progress ? { progress: without(room.progress) } : {}),
+    ...(room.readyIds ? { readyIds: room.readyIds.filter(id => id !== actor) } : {}) };
 }
 
 export function submitHarvest(room: Room, harvest: Harvest, actor: string): Room {
@@ -254,6 +278,7 @@ export function numericPredictionPoints(predicted: number, actual: number, maxDi
 
 /** Only approved harvests count. Ties share a place, without an arbitrary tie-break. */
 export function calculateResults(room: Room): ResultRow[] {
+  if (room.phase === 'cancelled') return [];
   const totals = new Map(room.members.map(member => [member, 0]));
   const bySpecies = new Map(species.map(kind => [kind, 0]));
   for (const harvest of room.harvests) {

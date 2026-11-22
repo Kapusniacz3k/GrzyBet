@@ -3,8 +3,9 @@ import { species as speciesNames } from './mushroom-species.ts';
 import { placeCoupon, type Coupon } from './coupons.ts';
 
 const species = new Set(speciesNames);
-const phases = new Set(['lobby', 'predicting', 'collecting', 'finished']);
+const phases = new Set(['lobby', 'predicting', 'collecting', 'finished', 'cancelled']);
 const statuses = new Set(['pending', 'approved', 'rejected']);
+type StorageOptions = { userId?: string; cloudPaths?: boolean };
 
 function invalid(path: string): never {
   throw new Error(`Zapisane dane są uszkodzone (${path}). Oryginalny zapis nie został zmieniony.`);
@@ -79,14 +80,16 @@ function draft(value: unknown, members: string[], path: string): Partial<Ticket>
   return result;
 }
 
-function harvest(value: unknown, members: string[], path: string): Harvest {
+function harvest(value: unknown, members: string[], path: string, roomId: string, cloudPaths = false): Harvest {
   const data = record(value, path);
   const member = text(data.member, `${path}.member`);
   if (!members.includes(member)) invalid(`${path}.member`);
   const status = text(data.status, `${path}.status`);
   if (!statuses.has(status)) invalid(`${path}.status`);
   const photoUri = text(data.photoUri, `${path}.photoUri`, 3_000_000);
-  if (!/^(?:file:\/\/|content:\/\/|data:image\/)/i.test(photoUri)) invalid(`${path}.photoUri`);
+  const harvestId = text(data.id, `${path}.id`);
+  if (cloudPaths ? photoUri !== `rooms/${roomId}/${member}/${harvestId}` || [roomId, member, harvestId].some(part => part.includes('/'))
+    : !/^(?:file:\/\/|content:\/\/|data:image\/)/i.test(photoUri)) invalid(`${path}.photoUri`);
   if (typeof data.note !== 'string' || data.note.length > 300) invalid(`${path}.note`);
   const rejectionReason = data.rejectionReason === undefined ? undefined : text(data.rejectionReason, `${path}.rejectionReason`);
   if (status === 'rejected' && !rejectionReason) invalid(`${path}.rejectionReason`);
@@ -100,9 +103,11 @@ function harvest(value: unknown, members: string[], path: string): Harvest {
   };
 }
 
-function room(value: unknown, index: number, legacy: boolean): Room {
+function room(value: unknown, index: number, legacy: boolean, options: StorageOptions): Room {
   const path = `pokój ${index + 1}`;
   const data = record(value, path);
+  const userId = options.userId ?? 'Kuba';
+  const roomId = text(data.id, `${path}.id`);
   if (!Array.isArray(data.members) || data.members.length === 0) invalid(`${path}.members`);
   const members = data.members.map((value, i) => text(value, `${path}.members[${i}]`));
   if (new Set(members).size !== members.length) invalid(`${path}.members`);
@@ -117,7 +122,8 @@ function room(value: unknown, index: number, legacy: boolean): Room {
   const closed = boolean(data.closed, `${path}.closed`);
   if (closed !== (phase !== 'lobby')) invalid(`${path}.closed`);
   const joined = boolean(data.joined, `${path}.joined`);
-  if (joined !== members.includes('Kuba')) invalid(`${path}.joined`);
+  if (joined !== members.includes(userId)) invalid(`${path}.joined`);
+  if (options.cloudPaths && !joined) invalid(`${path}.joined`);
   if (data.scoringVersion !== undefined && data.scoringVersion !== 2) invalid(`${path}.scoringVersion`);
   const scoringVersion = data.scoringVersion as 2 | undefined;
   let tickets = Object.fromEntries(Object.entries(record(data.tickets, `${path}.tickets`)).map(([member, value]) => {
@@ -125,11 +131,12 @@ function room(value: unknown, index: number, legacy: boolean): Room {
     return [member, ticket(value, members, `${path}.tickets.${member}`, scoringVersion)];
   }));
   let currentTicket = data.ticket === undefined ? undefined : ticket(data.ticket, members, `${path}.ticket`, scoringVersion);
-  if (JSON.stringify(currentTicket) !== JSON.stringify(tickets.Kuba)) invalid(`${path}.ticket`);
+  if (JSON.stringify(currentTicket) !== JSON.stringify(tickets[userId])) invalid(`${path}.ticket`);
   const answers: Record<string, Partial<Ticket>> = legacy ? {} : Object.fromEntries(
     Object.entries(record(data.answers, `${path}.answers`)).map(([member, value]) => {
-      if (!members.includes(member) || tickets[member]) invalid(`${path}.answers.${member}`);
-      return [member, draft(value, members, `${path}.answers.${member}`)];
+      const parsed = draft(value, members, `${path}.answers.${member}`);
+      if (!members.includes(member) || (tickets[member] && !(options.cloudPaths && Object.keys(parsed).length === 0))) invalid(`${path}.answers.${member}`);
+      return [member, parsed];
     }),
   );
   // Old lobby tickets become drafts: the organizer still has to start questions.
@@ -140,12 +147,12 @@ function room(value: unknown, index: number, legacy: boolean): Room {
   }
   if (phase === 'lobby' && Object.keys(tickets).length) invalid(`${path}.tickets`);
   if (!Array.isArray(data.harvests)) invalid(`${path}.harvests`);
-  const harvests = data.harvests.map((value, i) => harvest(value, members, `${path}.harvests[${i}]`));
+  const harvests = data.harvests.map((value, i) => harvest(value, members, `${path}.harvests[${i}]`, roomId, options.cloudPaths));
   if (new Set(harvests.map(item => item.id)).size !== harvests.length) invalid(`${path}.harvests`);
   const finishedAt = data.finishedAt === undefined ? undefined : date(data.finishedAt, `${path}.finishedAt`);
   const predictionStartedAt = data.predictionStartedAt === undefined ? undefined : date(data.predictionStartedAt, `${path}.predictionStartedAt`);
   if (phase === 'lobby' && predictionStartedAt !== undefined) invalid(`${path}.predictionStartedAt`);
-  if ((phase === 'finished') !== (finishedAt !== undefined)) invalid(`${path}.finishedAt`);
+  if ((phase === 'finished' || phase === 'cancelled') !== (finishedAt !== undefined)) invalid(`${path}.finishedAt`);
   if (phase === 'finished' && harvests.some(item => item.status === 'pending')) invalid(`${path}.harvests`);
   if ((phase === 'lobby' || phase === 'predicting') && harvests.length) invalid(`${path}.harvests`);
   const result: Room = {
@@ -157,6 +164,18 @@ function room(value: unknown, index: number, legacy: boolean): Room {
     ...(finishedAt === undefined ? {} : { finishedAt }),
     ...(predictionStartedAt === undefined ? {} : { predictionStartedAt }),
   };
+  if (data.names !== undefined) result.names = Object.fromEntries(Object.entries(record(data.names, `${path}.names`)).map(([member, value]) => {
+    if (!members.includes(member)) invalid(`${path}.names`);
+    return [member, text(value, `${path}.names.${member}`, 24)];
+  }));
+  if (data.progress !== undefined) result.progress = Object.fromEntries(Object.entries(record(data.progress, `${path}.progress`)).map(([member, value]) => {
+    if (!members.includes(member)) invalid(`${path}.progress`);
+    return [member, integer(value, `${path}.progress.${member}`, 0, 4)];
+  }));
+  if (data.readyIds !== undefined) {
+    if (!Array.isArray(data.readyIds) || data.readyIds.some(id => typeof id !== 'string' || !members.includes(id)) || new Set(data.readyIds).size !== data.readyIds.length) invalid(`${path}.readyIds`);
+    result.readyIds = data.readyIds as string[];
+  }
   if (data.gameMode !== undefined && data.gameMode !== 'classic' && data.gameMode !== 'coupons') invalid(`${path}.gameMode`);
   if (data.gameMode !== undefined) result.gameMode = data.gameMode;
   if (data.gameMode === 'coupons') {
@@ -185,22 +204,22 @@ function room(value: unknown, index: number, legacy: boolean): Room {
   return result;
 }
 
-function validateState(value: unknown): Room[] {
+function validateState(value: unknown, options: StorageOptions): Room[] {
   const data = record(value, 'format zapisu');
   if (data.version !== 1 && data.version !== 2) throw new Error('Nieobsługiwana wersja zapisu. Oryginalne dane nie zostały zmienione.');
   if (!Array.isArray(data.rooms)) invalid('lista pokojów');
-  const rooms = data.rooms.map((value, index) => room(value, index, data.version === 1));
+  const rooms = data.rooms.map((value, index) => room(value, index, data.version === 1, options));
   if (new Set(rooms.map(item => item.id)).size !== rooms.length) invalid('powtórzone identyfikatory pokojów');
   if (new Set(rooms.map(item => item.code)).size !== rooms.length) invalid('powtórzone kody pokojów');
   return rooms;
 }
 
-export function encodeRooms(rooms: Room[]): string {
-  return JSON.stringify({ version: 2, rooms: validateState({ version: 2, rooms }) });
+export function encodeRooms(rooms: Room[], options: StorageOptions = {}): string {
+  return JSON.stringify({ version: 2, rooms: validateState({ version: 2, rooms }, options) });
 }
 
-export function decodeRooms(raw: string): Room[] {
+export function decodeRooms(raw: string, options: StorageOptions = {}): Room[] {
   let data: unknown;
   try { data = JSON.parse(raw); } catch { invalid('niepoprawny JSON'); }
-  return validateState(data);
+  return validateState(data, options);
 }

@@ -8,6 +8,7 @@ export type Game = {
   displayName: string;
   mode: 'local' | 'online';
   busy: boolean;
+  offline?: boolean;
   setDisplayName?: (name: string) => Promise<void>;
   create: (data: RoomCreation) => Promise<string>;
   placeCoupon: (id: string, picks: CouponPicks, stake: number) => Promise<void>;
@@ -19,6 +20,9 @@ export type Game = {
   begin: (id: string) => Promise<void>;
   start: (id: string) => Promise<void>;
   finish: (id: string) => Promise<void>;
+  cancel: (id: string) => Promise<void>;
+  leave: (id: string) => Promise<void>;
+  loadPhoto?: (path: string, refresh?: boolean) => Promise<string>;
   addHarvest: (id: string, data: Pick<Harvest, 'species' | 'count' | 'photoUri' | 'note'>, onProgress?: (percent: number) => void) => Promise<void>;
   review: (id: string, harvestId: string, decision: 'approved' | 'rejected', reason?: string) => Promise<void>;
 };

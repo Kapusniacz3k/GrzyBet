@@ -59,8 +59,8 @@ const createStyles = (c: AppColors) => StyleSheet.create({
   description: { maxWidth: 320, color: c.textMuted, fontSize: 14, lineHeight: 22, textAlign: 'center' },
   status: { minHeight: 40, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, flexWrap: 'wrap' },
   statusText: { color: c.accent, fontSize: 13, lineHeight: 20, textAlign: 'center' },
-  retry: { width: '100%', maxWidth: 320, minHeight: 52, borderRadius: 14, backgroundColor: c.primary,
+  retry: { width: '100%', maxWidth: 320, minHeight: 52, borderRadius: 14, backgroundColor: c.actionGreen,
     paddingHorizontal: 24, paddingVertical: 16, alignItems: 'center', justifyContent: 'center' },
-  retryText: { color: c.onPrimary, fontSize: 15, fontWeight: '800' },
+  retryText: { color: c.onActionGreen, fontSize: 15, fontWeight: '800' },
   pressed: { opacity: 0.65 },
 });

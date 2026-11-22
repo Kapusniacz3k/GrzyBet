@@ -10,5 +10,5 @@ export async function assertAccountDeletionAllowed(db: Firestore, userId: string
       throw new Error('Nie udało się sprawdzić aktywnych wypraw. Sprawdź połączenie i spróbuj ponownie. Konto nie zostało usunięte.');
     });
 
-  if (rooms.docs.some(room => room.data().phase !== 'finished')) throw new Error(activeTripDeletionMessage);
+  if (rooms.docs.some(room => !['finished', 'cancelled'].includes(room.data().phase))) throw new Error(activeTripDeletionMessage);
 }

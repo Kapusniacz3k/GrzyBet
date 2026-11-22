@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { homeSummary } from '../src/features/home-summary.ts';
+import { homeSummary, ownTripSections } from '../src/features/home-summary.ts';
 
 const user = 'uid-first';
 const other = 'uid-second';
@@ -23,9 +23,10 @@ test('home selects the newest own active trip and last finished trip without cha
   const originalOrder = rooms.map(item => item.id);
   const summary = homeSummary(rooms, user);
   assert.equal(summary.active.id, 'new');
+  assert.deepEqual(summary.activeTrips.map(item => item.id), ['new', 'old']);
   assert.equal(summary.recent.room.id, 'late');
   assert.deepEqual(rooms.map(item => item.id), originalOrder);
-  assert.deepEqual(homeSummary(rooms, 'another-account'), { active: undefined });
+  assert.deepEqual(homeSummary(rooms, 'another-account'), { active: undefined, activeTrips: [] });
 });
 
 test('live rooms and an empty history cannot leak a premature result preview', () => {
@@ -33,7 +34,49 @@ test('live rooms and an empty history cannot leak a premature result preview', (
     const live = room({ phase, harvests: [harvest(user, 25)] });
     assert.equal(homeSummary([live], user).recent, undefined);
   }
-  assert.deepEqual(homeSummary([], user), { active: undefined });
+  assert.deepEqual(homeSummary([], user), { active: undefined, activeTrips: [] });
+});
+
+test('every own nonterminal trip remains reachable even before a ticket is saved', () => {
+  const lobbies = [room({ id: 'lobby-old', date: '2026-11-12T08:00:00Z' }), room({ id: 'lobby-new' })];
+  const predicting = room({ id: 'predicting', phase: 'predicting', date: '2026-11-14T08:00:00Z' });
+  const collecting = room({ id: 'collecting', phase: 'collecting', date: '2026-11-13T08:00:00Z' });
+  const finished = room({ id: 'finished', phase: 'finished', finishedAt: '2026-11-17T12:00:00Z' });
+  const cancelled = room({ id: 'cancelled', phase: 'cancelled', date: '2026-11-19T08:00:00Z', finishedAt: '2026-11-20T12:00:00Z' });
+  const wrongAccount = room({ id: 'other-account', members: [other], date: '2026-11-21T08:00:00Z' });
+  const notJoined = room({ id: 'not-joined', joined: false, date: '2026-11-22T08:00:00Z' });
+  const rooms = [...lobbies, predicting, collecting, finished, cancelled, wrongAccount, notJoined];
+  const originalOrder = rooms.map(item => item.id);
+  const sections = ownTripSections(rooms, user);
+  const summary = homeSummary(rooms, user);
+  const expectedActive = ['lobby-new', 'predicting', 'collecting', 'lobby-old'];
+  assert.deepEqual(sections.activeTrips.map(item => item.id), expectedActive);
+  assert.deepEqual(summary.activeTrips.map(item => item.id), expectedActive);
+  assert.ok(sections.activeTrips.every(item => Object.keys(item.tickets).length === 0));
+  assert.deepEqual(sections.history.map(item => item.id), ['cancelled', 'finished']);
+  assert.deepEqual(sections.finishedTrips.map(item => item.id), ['finished']);
+  assert.deepEqual(rooms.map(item => item.id), originalOrder);
+});
+
+test('an annulled trip stays in profile history without becoming active or supplying results or completed-trip statistics', () => {
+  const cancelled = room({ id: 'cancelled', phase: 'cancelled', closed: true,
+    finishedAt: '2026-11-20T12:00:00Z', harvests: [harvest(user, 999)],
+    tickets: { [user]: { winner: user, own: 999, total: 999, species: 'Borowik' } },
+  });
+  const onlyCancelled = ownTripSections([cancelled], user);
+  assert.deepEqual(onlyCancelled.activeTrips, []);
+  assert.deepEqual(onlyCancelled.finishedTrips, []);
+  assert.deepEqual(onlyCancelled.history, [cancelled]);
+  assert.deepEqual(homeSummary([cancelled], user), { active: undefined, activeTrips: [] });
+
+  const completed = room({ id: 'completed', phase: 'finished', closed: true,
+    finishedAt: '2026-11-18T12:00:00Z', harvests: [harvest(user, 4)],
+  });
+  const sections = ownTripSections([completed, cancelled], user);
+  assert.equal(sections.history.length, 2);
+  assert.equal(sections.finishedTrips.length, 1, 'the completed-trip count excludes cancellations');
+  assert.equal(homeSummary([completed, cancelled], user).recent.room.id, 'completed');
+  assert.equal(homeSummary([completed, cancelled], user).recent.mushrooms, 4);
 });
 
 test('classic history counts only the current account approved harvests and keeps prediction points', () => {

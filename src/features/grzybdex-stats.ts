@@ -15,7 +15,7 @@ export type SpeciesStats = { species: string; total: number; bestTrip: number; t
 export function calculateGrzybdex(rooms: readonly Room[], userId: string, speciesNames: readonly string[]): SpeciesStats[] {
   const stats = new Map(speciesNames.map(name => [name, { species: name, total: 0, bestTrip: 0, trips: 0 }]));
   for (const room of rooms) {
-    if (!room.joined || !room.members.includes(userId) || !['collecting', 'finished'].includes(room.phase)) continue;
+    if (!room.joined || !room.members.includes(userId) || !['collecting', 'finished', 'cancelled'].includes(room.phase)) continue;
     const tripTotals = new Map<string, number>();
     for (const harvest of room.harvests) {
       if (harvest.member !== userId || harvest.status !== 'approved' || !stats.has(harvest.species) ||

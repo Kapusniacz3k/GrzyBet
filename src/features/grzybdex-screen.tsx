@@ -2,17 +2,20 @@ import type { AppColors } from '@/constants/app-theme';
 import { useAppTheme, useThemedStyles } from '@/hooks/use-app-theme';
 import { Image } from 'expo-image';
 import { Link, router, Stack, useLocalSearchParams } from 'expo-router';
-import { useEffect, useMemo, useRef, useState, type ComponentRef } from 'react';
-import { Keyboard, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { useEffect, useId, useMemo, useRef, useState, type ComponentRef } from 'react';
+import { Keyboard, Platform, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import Svg, { Defs, FeColorMatrix, Filter, Image as SvgImage } from 'react-native-svg';
 import Animated, { Easing, ReduceMotion, useAnimatedStyle, useReducedMotion, useSharedValue, withTiming } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { CloseIcon, DiamondIcon, LockIcon, MushroomIcon, SearchIcon, SparkleIcon } from '@/components/grzybet-icons';
+import { CloseIcon, DiamondIcon, FilterIcon, LockIcon, MushroomIcon, SearchIcon, SparkleIcon } from '@/components/grzybet-icons';
 import { MotionPressable as Pressable, MotionView } from '@/components/motion';
 import { species, useGame } from './game';
 import { mushroomCatalog } from './grzybdex-catalog';
 import { badgeProgress, calculateGrzybdex, type MushroomBadge, type SpeciesStats } from './grzybdex-stats';
 import { Button, Copy, Page, useUIStyles, Title } from './ui';
 import { searchSpecies } from './mushroom-species';
+import { MushroomTraitPicker } from './mushroom-trait-picker';
+import { emptyTraitSelection, hasTraitFilters, identificationNotice, matchesMushroomTraits, mushroomTraits, selectedTraitCount, traitSelectionLabels } from './mushroom-traits';
 
 const nextBadgeLabel: Record<MushroomBadge['id'], string> = {
   wood: 'drewna', bronze: 'brązu', silver: 'srebra', gold: 'złota', diamond: 'diamentu', mushroomer: 'Grzybiarza',
@@ -31,12 +34,16 @@ export function GrzybdexScreen() {
   const [filter, setFilter] = useState<'all' | 'found' | 'locked'>('all');
   const [searchOpen, setSearchOpen] = useState(false);
   const [query, setQuery] = useState('');
+  const [traitFilters, setTraitFilters] = useState(emptyTraitSelection);
+  const [traitPickerOpen, setTraitPickerOpen] = useState(false);
+  const traitsActive = hasTraitFilters(traitFilters);
   const scroll = useRef<ComponentRef<typeof ScrollView>>(null);
   const matchingIds = useMemo(() => new Set(searchSpecies(query).map(item => item.id)), [query]);
   const entries = mushroomCatalog.map(mushroom => ({ mushroom, stats: collection.find(entry => entry.species === mushroom.name)! }));
   const visible = entries.filter(({ mushroom, stats }) => matchingIds.has(mushroom.id)
+    && matchesMushroomTraits(mushroom.id, traitFilters)
     && (filter === 'all' || (filter === 'found' ? stats.total > 0 : stats.total === 0)));
-  useEffect(() => { scroll.current?.scrollTo({ y: 0, animated: false }); }, [query, filter]);
+  useEffect(() => { scroll.current?.scrollTo({ y: 0, animated: false }); }, [query, filter, traitFilters]);
   // Fixed pairs keep two columns on native and web without measured-width rounding.
   const rows = Array.from({ length: Math.ceil(visible.length / 2) }, (_, index) => visible.slice(index * 2, index * 2 + 2));
   const discovered = collection.filter(entry => entry.total > 0).length;
@@ -46,6 +53,13 @@ export function GrzybdexScreen() {
     <MotionView distance={0} style={styles.collectionHeader}>
       <View style={styles.titleRow}>
         <Text accessibilityRole="header" style={styles.collectionTitle}>Grzybedex</Text>
+        <Pressable accessibilityRole="button" accessibilityLabel="Rozpoznaj po cechach" aria-expanded={traitPickerOpen}
+          accessibilityHint="Wybierz kolejno kolor, spód, kształt i miejsce występowania."
+          onPress={() => { Keyboard.dismiss(); setTraitPickerOpen(true); }}
+          style={({ pressed }) => [styles.traitButton, traitsActive && styles.traitButtonActive, pressed && styles.pressed]}>
+          <FilterIcon size={18} color={traitsActive ? colors.navigationActive : colors.textMuted} />
+          <Text style={styles.traitButtonText}>Cechy{traitsActive ? ` · ${selectedTraitCount(traitFilters)}` : ''}</Text>
+        </Pressable>
         <Pressable accessibilityRole="button" accessibilityLabel={searchOpen ? 'Zamknij wyszukiwanie' : 'Szukaj grzybów'}
           aria-expanded={searchOpen} onPress={() => {
             setSearchOpen(open => !open);
@@ -82,6 +96,14 @@ export function GrzybdexScreen() {
     </MotionView>
     <ScrollView ref={scroll} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag"
       style={styles.collectionScroll} contentContainerStyle={[s.page, styles.collectionContent]}>
+    {traitsActive && <View style={styles.traitResults}>
+      <View style={styles.traitResultsHeading}><Text accessibilityLiveRegion="polite" style={styles.traitResultsTitle}>Dopasowania w katalogu: {visible.length}</Text>
+        <Pressable accessibilityRole="button" accessibilityLabel="Usuń filtr cech" onPress={() => setTraitFilters(emptyTraitSelection())} style={styles.clearTraits}>
+          <Text style={styles.traitButtonText}>Wyczyść</Text></Pressable>
+      </View>
+      <Text style={styles.smallCopy}>{traitSelectionLabels(traitFilters).join(' · ')}</Text>
+      <Text style={styles.traitNotice}>{identificationNotice}</Text>
+    </View>}
     <View style={styles.grid}>
       {rows.map((row, rowIndex) => <View key={row[0].mushroom.id} style={styles.gridRow}>
         {row.map(({ mushroom, stats }, columnIndex) => {
@@ -89,12 +111,10 @@ export function GrzybdexScreen() {
           const progress = badgeProgress(stats.total);
           const unlocked = stats.total > 0;
           return <Pressable key={mushroom.id} enterDelay={Math.min(index, 7) * 45} accessibilityRole="button" accessibilityLabel={`Zobacz ${mushroom.label}`}
-            accessibilityHint={unlocked ? `${stats.total} znalezionych sztuk. Otwiera statystyki, rangę i notatkę.` : 'Gatunek nieodkryty. Pierwsza zatwierdzona sztuka odblokuje zdjęcie i notatkę.'}
+            accessibilityHint={unlocked ? `${stats.total} znalezionych sztuk. Otwiera statystyki, rangę i notatkę.` : 'Gatunek nieodkryty. Otwiera kolorowe zdjęcie i notatkę. Pierwsza zatwierdzona sztuka usuwa kłódkę z kafelka.'}
             onPress={() => router.push({ pathname: '/grzybdex/[id]', params: { id: mushroom.id } })}
             style={({ pressed }) => [styles.tile, pressed && styles.pressed]}>
-            {unlocked ? <Image accessible={false} source={mushroom.photo} contentFit="cover"
-              contentPosition={mushroom.id === 'podgrzybek' ? 'top' : 'center'} style={styles.tilePhoto} />
-              : <View style={[styles.tilePhoto, styles.lockedPhoto]}><LockIcon size={32} color={colors.lock} /></View>}
+            <MushroomTilePhoto mushroom={mushroom} unlocked={unlocked} />
             <View style={styles.tileBody}>
               <Text numberOfLines={2} style={styles.tileTitle}>{mushroom.label}</Text>
               {unlocked ? <>
@@ -113,18 +133,20 @@ export function GrzybdexScreen() {
       </View>)}
     </View>
     {!visible.length && <View accessibilityLiveRegion="polite" style={styles.empty}>
-      <Text style={styles.sectionTitle}>{query.trim() ? 'Nie znaleziono grzybów' : filter === 'found' ? 'Pierwsze odkrycie przed Tobą' : 'Kolekcja kompletna'}</Text>
-      <Copy>{query.trim() ? 'Spróbuj krótszej nazwy, nazwy potocznej lub filtra „Wszystkie”.'
-        : filter === 'found' ? 'Pierwsza zatwierdzona sztuka odblokuje zdjęcie, notatkę i rangę.' : 'Masz już wszystkie gatunki. Kolejne sztuki przybliżają Cię do nowych rang.'}</Copy>
+      <Text style={styles.sectionTitle}>{traitsActive ? 'Brak dopasowań' : query.trim() ? 'Nie znaleziono grzybów' : filter === 'found' ? 'Pierwsze odkrycie przed Tobą' : 'Kolekcja kompletna'}</Text>
+      <Copy>{traitsActive ? 'Zmień lub pomiń cechę. Możesz też usunąć nazwę z wyszukiwania lub wybrać „Wszystkie”. Brak dopasowania nie rozstrzyga, jaki to gatunek.' : query.trim() ? 'Spróbuj krótszej nazwy, nazwy potocznej lub filtra „Wszystkie”.'
+        : filter === 'found' ? 'Pierwsza zatwierdzona sztuka doda grzyba do odkrytych i odblokuje pierwszą rangę.' : 'Masz już wszystkie gatunki. Kolejne sztuki przybliżają Cię do nowych rang.'}</Copy>
     </View>}
     <Copy>Postęp tworzą Twoje zatwierdzone zbiory. Oczekujące i odrzucone zgłoszenia się nie liczą.</Copy>
     </ScrollView>
+    {traitPickerOpen && <MushroomTraitPicker initial={traitFilters} onClose={() => setTraitPickerOpen(false)} onApply={selection => {
+      setTraitFilters(selection); setFilter('all'); setQuery(''); setSearchOpen(false); setTraitPickerOpen(false);
+    }} />}
   </SafeAreaView>;
 }
 
 export function MushroomDetailsScreen() {
   const styles = useThemedStyles(createStyles);
-  const colors = useAppTheme();
   const { id } = useLocalSearchParams<{ id: string }>();
   const collection = useCollection();
   const reducedMotion = useReducedMotion();
@@ -132,33 +154,48 @@ export function MushroomDetailsScreen() {
   if (!mushroom) return <Page><Title>Nie znaleziono grzyba</Title><Copy>Wybierz gatunek ze swojej kolekcji.</Copy>
     <Button title="Wróć do Grzybedexu" onPress={() => router.replace('/grzybdex')} /></Page>;
   const stats = collection.find(entry => entry.species === mushroom.name)!;
-  const unlocked = stats.total > 0;
   return <Page>
     <Stack.Screen options={{ title: mushroom.label }} />
     <View style={styles.intro}><Text style={styles.eyebrow}>KARTA GRZYBA</Text><Title>{mushroom.label}</Title><Copy>{mushroom.scientificName}</Copy></View>
     <View style={styles.heroPhotoFrame}>
-      {unlocked ? <Image source={mushroom.photo} transition={reducedMotion ? 0 : 220} contentFit="contain" accessibilityLabel={`Zdjęcie: ${mushroom.label}`} style={styles.heroPhoto} />
-        : <View style={[styles.heroPhoto, styles.lockedPhoto, styles.lockedHero]}>
-          <LockIcon size={64} color={colors.lock} />
-          <Text style={styles.lockedTitle}>Jeszcze nieodkryty</Text>
-          <Text style={styles.lockedCopy}>Pierwsza zatwierdzona sztuka odblokuje zdjęcie i notatkę.</Text>
-        </View>}
+      <Image source={mushroom.photo} transition={reducedMotion ? 0 : 220} contentFit="contain" accessibilityLabel={`Zdjęcie: ${mushroom.label}`} style={styles.heroPhoto} />
     </View>
-    {unlocked && <MotionView distance={0} style={styles.noteCard}>
+    <MotionView distance={0} style={styles.noteCard}>
       <Text accessibilityRole="header" style={styles.sectionTitle}>O grzybie</Text>
       <Copy>{mushroom.note}</Copy>
       <Link href={mushroom.noteSource.url} style={styles.sourceLink}>Źródło notatki: {mushroom.noteSource.label} ↗</Link>
-    </MotionView>}
+    </MotionView>
     <View style={styles.statRow}>
       <View style={styles.statCard}><Text style={styles.statNumber}>{stats.total}</Text><Text style={styles.statLabel}>Łącznie znaleziono</Text><Text style={styles.smallCopy}>sztuk tego gatunku</Text></View>
       <View style={styles.statCard}><Text style={styles.statNumber}>{stats.bestTrip}</Text><Text style={styles.statLabel}>Rekord na wyprawie</Text><Text style={styles.smallCopy}>sztuk podczas jednej wyprawy</Text></View>
     </View>
     <Copy>Wyprawy z tym gatunkiem: {stats.trips}. Liczymy sztuki z Twoich zatwierdzonych zgłoszeń.</Copy>
     <BadgeProgress stats={stats} />
-    {unlocked && <View style={styles.credit}><Text style={styles.smallCopy}>Zdjęcie: {mushroom.author}</Text>
+    <View style={styles.credit}><Text style={styles.smallCopy}>Zdjęcie: {mushroom.author}</Text>
       <Link href={mushroom.source} style={styles.sourceLink}>Źródło zdjęcia ↗</Link>
-      <Link href={mushroom.licenseUrl} style={styles.sourceLink}>Licencja: {mushroom.license} ↗</Link></View>}
+      <Link href={mushroomTraits[mushroom.id].source.url} style={styles.sourceLink}>Źródło cech w filtrze: {mushroomTraits[mushroom.id].source.label} ↗</Link>
+      <Link href={mushroom.licenseUrl} style={styles.sourceLink}>Licencja: {mushroom.license} ↗</Link></View>
   </Page>;
+}
+
+function MushroomTilePhoto({ mushroom, unlocked }: { mushroom: typeof mushroomCatalog[number]; unlocked: boolean }) {
+  const styles = useThemedStyles(createStyles);
+  const filterId = `grzybedex-gray-${useId().replace(/[^a-zA-Z0-9_-]/g, '')}`;
+  const top = mushroom.id === 'podgrzybek';
+  return <View style={styles.tilePhoto}>
+    {Platform.OS === 'ios' && !unlocked ? <Svg width="100%" height="100%" viewBox="0 0 160 100" accessible={false}>
+      {/* Native View grayscale is Android-only; SVG supplies the same effect on iOS. */}
+      <Defs><Filter id={filterId} x="0%" y="0%" width="100%" height="100%">
+        <FeColorMatrix type="saturate" values="0" />
+      </Filter></Defs>
+      <SvgImage href={mushroom.photo} width={160} height={100} preserveAspectRatio={top ? 'xMidYMin slice' : 'xMidYMid slice'} filter={`url(#${filterId})`} />
+    </Svg> : <View style={[StyleSheet.absoluteFill, !unlocked && styles.grayscalePhoto]}>
+      <Image accessible={false} source={mushroom.photo} contentFit="cover" contentPosition={top ? 'top' : 'center'} style={StyleSheet.absoluteFill} />
+    </View>}
+    {!unlocked && <View pointerEvents="none" style={styles.lockOverlay}>
+      <View style={styles.lockBadge}><LockIcon size={24} color="#E2E2E2" /></View>
+    </View>}
+  </View>;
 }
 
 function SummaryStat({ value, label }: { value: number | string; label: string }) {
@@ -214,7 +251,15 @@ const createStyles = (c: AppColors) => StyleSheet.create({
   searchRow: { flexDirection: 'row', alignItems: 'center', paddingLeft: 12, borderWidth: 1, borderColor: c.borderStrong,
     borderRadius: 12, backgroundColor: c.surface },
   searchInput: { flex: 1, minWidth: 0, minHeight: 48, padding: 12, fontSize: 14, color: c.text },
-  collectionTitle: { color: c.text, fontSize: 28, lineHeight: 34, fontWeight: '700', letterSpacing: -0.8 },
+  collectionTitle: { flex: 1, minWidth: 0, color: c.text, fontSize: 28, lineHeight: 34, fontWeight: '700', letterSpacing: -0.8 },
+  traitButton: { minHeight: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingHorizontal: 10, borderRadius: 12, borderWidth: 1, borderColor: c.borderStrong },
+  traitButtonActive: { backgroundColor: c.navigationSurface, borderColor: c.navigationActive },
+  traitButtonText: { color: c.textSecondary, fontSize: 11, lineHeight: 17, fontWeight: '500' },
+  traitResults: { gap: 8, paddingBottom: 16, borderBottomWidth: 1, borderBottomColor: c.border },
+  traitResultsHeading: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
+  traitResultsTitle: { flex: 1, color: c.text, fontSize: 14, lineHeight: 20, fontWeight: '600' },
+  clearTraits: { minHeight: 44, justifyContent: 'center', paddingHorizontal: 6 },
+  traitNotice: { color: c.textMuted, fontSize: 11, lineHeight: 18 },
   intro: { gap: 8 },
   eyebrow: { color: c.textMuted, fontSize: 10, fontWeight: '600', letterSpacing: 1.4 },
   summary: { flexDirection: 'row', paddingBottom: 16, borderBottomWidth: 1, borderBottomColor: c.border },
@@ -231,10 +276,9 @@ const createStyles = (c: AppColors) => StyleSheet.create({
   tileSpacer: { flex: 1, minWidth: 0 },
   tile: { flex: 1, minWidth: 0, borderRadius: 18, overflow: 'hidden', backgroundColor: c.surface },
   tilePhoto: { width: '100%', aspectRatio: 1.6, backgroundColor: c.photoPlaceholder },
-  lockedPhoto: { alignItems: 'center', justifyContent: 'center', backgroundColor: c.photoPlaceholder },
-  lockedHero: { gap: 14, padding: 24 },
-  lockedTitle: { color: c.textMuted, fontSize: 18, fontWeight: '700' },
-  lockedCopy: { color: c.textMuted, fontSize: 13, lineHeight: 20, textAlign: 'center', maxWidth: 280 },
+  grayscalePhoto: { filter: 'grayscale(1)' },
+  lockOverlay: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(0, 0, 0, 0.16)' },
+  lockBadge: { width: 46, height: 46, borderRadius: 23, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(35, 35, 35, 0.78)' },
   tileBody: { padding: 12, gap: 8 },
   tileTitle: { color: c.text, fontSize: 14, lineHeight: 19, minHeight: 38, fontWeight: '600' },
   tileCountRow: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', flexWrap: 'wrap', gap: 4 },

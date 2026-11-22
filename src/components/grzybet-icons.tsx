@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { Platform } from 'react-native';
-import Svg, { Circle, G, Path, Rect } from 'react-native-svg';
+import Svg, { Circle, Ellipse, G, Path, Rect } from 'react-native-svg';
 
 type IconProps = { size?: number; color?: string };
 const decorativeProps = Platform.OS === 'web'
@@ -35,6 +35,64 @@ export function InfoIcon({ size = 18, color = '#999999' }: IconProps) {
   return <OutlineCanvas size={size} color={color}>
     <Circle cx={12} cy={12} r={10} /><Path d="M12 16v-4M12 8h.01" />
   </OutlineCanvas>;
+}
+
+export function FilterIcon({ size = 20, color = '#999999' }: IconProps) {
+  return <OutlineCanvas size={size} color={color}>
+    <Path d="M3 6h6m6 0h6M3 12h2m6 0h10M3 18h10m6 0h2" />
+    <Circle cx={12} cy={6} r={2.5} /><Circle cx={8} cy={12} r={2.5} /><Circle cx={16} cy={18} r={2.5} />
+  </OutlineCanvas>;
+}
+
+export type MushroomTraitIconName = 'tubes' | 'gills' | 'folds' | 'spines' | 'smooth'
+  | 'cap' | 'funnel' | 'shelf' | 'ball' | 'branched' | 'forest' | 'grass' | 'wood' | 'cone';
+
+// Small original sketches show the feature itself, using the app's outline style.
+const traitDrawings: Record<MushroomTraitIconName, ReactNode> = {
+  tubes: <>
+    <Circle cx={12} cy={12} r={9} />
+    <G strokeWidth={1.2}>
+      <Circle cx={9} cy={7} r={1.1} /><Circle cx={14} cy={7} r={1.1} />
+      <Circle cx={6.5} cy={11.5} r={1.1} /><Circle cx={11.5} cy={11.5} r={1.1} /><Circle cx={16.5} cy={11.5} r={1.1} />
+      <Circle cx={9} cy={16} r={1.1} /><Circle cx={14} cy={16} r={1.1} />
+    </G>
+  </>,
+  gills: <>
+    <Circle cx={12} cy={12} r={9} /><Circle cx={12} cy={12} r={2} />
+    <Path d="M12 3v7m0 4v7M3 12h7m4 0h7M5.6 5.6l5 5m2.8 2.8 5 5M5.6 18.4l5-5m2.8-2.8 5-5" strokeWidth={1.4} />
+  </>,
+  folds: <>
+    <Circle cx={12} cy={12} r={9} /><Circle cx={12} cy={12} r={1.5} />
+    <Path d="M11 11C9 9 10 6 8 4m2 4L5 7M13 11c2-1 2-4 5-5m-3 3 5 1M13 13c1 3 5 2 5 5m-3-3-1 5M11 13c-3 1-2 5-5 5m3-3-5-1" strokeWidth={1.4} />
+  </>,
+  spines: <>
+    <Path d="M3 8Q12 1 21 8H3Zm2 1v7l1 3 1-3V9m3 0v9l1 3 1-3V9m3 0v7l1 3 1-3V9m3 0v4l1 3" strokeWidth={1.4} />
+  </>,
+  smooth: <><Circle cx={12} cy={12} r={9} /><Path d="M5 13q7 5 14 0" /></>,
+  cap: <><Path d="M3 12a9 8 0 0 1 18 0H3Zm6 0v7q3 3 6 0v-7" /></>,
+  funnel: <><Path d="M3 5q9-5 18 0-9 7-18 0Zm0 0 6 10v6h6v-6l6-10" /></>,
+  shelf: <>
+    <Path d="M19 18C6 23 0 13 5 7c6-8 20-4 14 11Zm0 0-2 3h-4" />
+    <Path d="M18 17Q12 14 6 13m12 4Q12 10 8 7m10 10Q19 9 14 5" strokeWidth={1.3} />
+  </>,
+  ball: <><Path d="M9 19C1 15 4 3 12 3s11 12 3 16l-1 2h-4l-1-2Z" /><Path d="m9 8 1-1m5 2 1 1m-8 4 1 1" strokeWidth={1.3} /></>,
+  branched: <Path d="M12 21v-6m0 0-6-4m6 4 6-4M6 11V6m0 5L3 8m3 3 3-3M18 11V5m0 6 3-4m-3 4-3-4M12 15V7m0 0L9 4m3 3 3-4" />,
+  forest: <>
+    <Path d="M7 3 2 11h3l-3 5h10l-3-5h3L7 3Zm0 13v5m10-7v7M2 21h20" />
+    <Path d="M14 14a5 5 0 1 1 6 0" />
+  </>,
+  grass: <Path d="M3 21h18M6 21C6 15 3 12 3 12m6 9c0-8 3-13 3-13m0 13c0-7 5-11 5-11m-1 11c0-5 5-7 5-7M7 11 6 7" />,
+  wood: <>
+    <Path d="M6 5h12c5 0 5 14 0 14H6m5-11h7m-6 8h7" />
+    <Ellipse cx={6} cy={12} rx={4} ry={7} /><Ellipse cx={6} cy={12} rx={1.5} ry={3} />
+  </>,
+  cone: <>
+    <Path d="M12 2C4 6 4 16 12 21c8-5 8-15 0-19Zm0 19v2M7 7l5 3 5-3m-11 5 6 3 6-3m-10 5 4 2 4-2" />
+  </>,
+};
+
+export function MushroomTraitIcon({ name, size = 28, color = '#999999' }: IconProps & { name: MushroomTraitIconName }) {
+  return <OutlineCanvas size={size} color={color}>{traitDrawings[name]}</OutlineCanvas>;
 }
 
 export function SearchIcon({ size = 22, color = '#999999' }: IconProps) {

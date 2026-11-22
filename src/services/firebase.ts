@@ -1,8 +1,9 @@
 import { initializeApp, getApps } from 'firebase/app';
 import { connectAuthEmulator } from 'firebase/auth';
-import { connectFirestoreEmulator, getFirestore } from 'firebase/firestore';
+import { connectFirestoreEmulator } from 'firebase/firestore';
 import { connectStorageEmulator, getStorage } from 'firebase/storage';
 import { persistentAuth } from './persistent-auth';
+import { clientFirestore } from './firestore-client';
 
 export const onlineEnabled = process.env.EXPO_PUBLIC_FIREBASE_ENABLED === 'true';
 const config = {
@@ -20,7 +21,7 @@ function createServices() {
   }
   const app = getApps().find(item => item.name === 'grzybet-online') ?? initializeApp(config, 'grzybet-online');
   const auth = persistentAuth(app);
-  const db = getFirestore(app);
+  const db = clientFirestore(app);
   const storage = getStorage(app);
   storage.maxUploadRetryTime = 45000;
   storage.maxOperationRetryTime = 15000;

@@ -26,6 +26,12 @@ function RoomContent() {
   const room = rooms.find(r => r.id === id && r.joined);
   const [selection, setSelection] = useState({ roomId: '', phase: '', tab: 'Lobby' });
   if (!room) return <Page topInset={false} contentStyle={{ paddingTop: 0 }}><Title>{mode === 'online' ? 'Łączenie z pokojem…' : 'Nie znaleziono pokoju'}</Title><Button title="Wróć na start" onPress={() => router.replace('/home')} /></Page>;
+  if (room.phase === 'cancelled') return <Page topInset={false} contentStyle={{ paddingTop: 0 }}>
+    <RoomHeader room={room} />
+    <Card><Label>Wyprawa anulowana</Label><Copy>Nie rozliczamy punktów ani kuponów. Zatwierdzone zbiory pozostają w Grzybedexie. Zgłoszenia są dostępne tylko do odczytu.</Copy></Card>
+    {room.harvests.length > 0 && <HarvestPanel key={room.id} room={room} />}
+    <Button title="Wróć na start" secondary onPress={() => router.dismissTo('/home')} />
+  </Page>;
   const searchesStarted = room.phase === 'collecting' || room.phase === 'finished';
   const tabs = room.phase === 'finished' ? ['Zbiory', 'Wyniki'] : room.phase === 'collecting' ? ['Zbiory'] : room.phase === 'predicting' ? ['Lobby', 'Typowanie'] : ['Lobby'];
   const defaultTab = room.phase === 'finished' ? 'Wyniki' : room.phase === 'collecting' ? 'Zbiory' : 'Lobby';
