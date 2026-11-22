@@ -32,7 +32,7 @@ Niewysłany szkic zbioru zapisuje się na tym urządzeniu. Po utracie połączen
 ## Profil i kolekcja
 
 - **Grzybedex** zawiera **100 gatunków** z wyszukiwaniem po nazwach polskich, potocznych i łacińskich. Nieodkryte grzyby mają szare zdjęcie i kłódkę; po otwarciu kafelka od razu zobaczysz kolorowe zdjęcie i notatkę. Pierwszy zatwierdzony zbiór usuwa szarość i kłódkę.
-- Szczegóły gatunku pokazują łączną liczbę zebranych sztuk, rekord jednej wyprawy, zdobytą odznakę i postęp do następnej.
+- Szczegóły gatunku pokazują jadalność ze źródłem i ewentualnymi warunkami spożycia, łączną liczbę zebranych sztuk, rekord jednej wyprawy, zdobytą odznakę i postęp do następnej. Oznaczenie jadalności nie potwierdza rozpoznania znalezionego okazu.
 - Przycisk **Cechy** prowadzi krok po kroku przez filtrowanie według koloru, spodu kapelusza, kształtu i miejsca występowania. To pomoc w porównaniu gatunków, która nie potwierdza jadalności grzyba.
 - **Profil** pokazuje Twój dorobek. Pod statystykami są dwa kafelki: **Aktywne wyprawy** i **Historia wypraw** — każdy otwiera osobne okno z listą.
 - Możesz grać jako gość lub zabezpieczyć konto e-mailem i hasłem, aby wrócić do swojego postępu na innym telefonie. Dostępne są także logowanie, odzyskiwanie hasła i usunięcie konta z dodatkowym potwierdzeniem.

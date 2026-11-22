@@ -7,7 +7,7 @@ import { Keyboard, Platform, ScrollView, StyleSheet, Text, TextInput, View } fro
 import Svg, { Defs, FeColorMatrix, Filter, Image as SvgImage } from 'react-native-svg';
 import Animated, { Easing, ReduceMotion, useAnimatedStyle, useReducedMotion, useSharedValue, withTiming } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { CloseIcon, DiamondIcon, FilterIcon, LockIcon, MushroomIcon, SearchIcon, SparkleIcon } from '@/components/grzybet-icons';
+import { CheckIcon, CloseIcon, DiamondIcon, ExclamationIcon, FilterIcon, InfoIcon, LockIcon, MushroomIcon, SearchIcon, SparkleIcon } from '@/components/grzybet-icons';
 import { MotionPressable as Pressable, MotionView } from '@/components/motion';
 import { species, useGame } from './game';
 import { mushroomCatalog } from './grzybdex-catalog';
@@ -16,6 +16,7 @@ import { Button, Copy, Page, useUIStyles, Title } from './ui';
 import { searchSpecies } from './mushroom-species';
 import { MushroomTraitPicker } from './mushroom-trait-picker';
 import { emptyTraitSelection, hasTraitFilters, identificationNotice, matchesMushroomTraits, mushroomTraits, selectedTraitCount, traitSelectionLabels } from './mushroom-traits';
+import { edibilityLabels, edibilityNotice, mushroomEdibility } from './mushroom-edibility';
 
 const nextBadgeLabel: Record<MushroomBadge['id'], string> = {
   wood: 'drewna', bronze: 'brązu', silver: 'srebra', gold: 'złota', diamond: 'diamentu', mushroomer: 'Grzybiarza',
@@ -160,6 +161,7 @@ export function MushroomDetailsScreen() {
     <View style={styles.heroPhotoFrame}>
       <Image source={mushroom.photo} transition={reducedMotion ? 0 : 220} contentFit="contain" accessibilityLabel={`Zdjęcie: ${mushroom.label}`} style={styles.heroPhoto} />
     </View>
+    <EdibilityCard mushroomId={mushroom.id} />
     <MotionView distance={0} style={styles.noteCard}>
       <Text accessibilityRole="header" style={styles.sectionTitle}>O grzybie</Text>
       <Copy>{mushroom.note}</Copy>
@@ -176,6 +178,29 @@ export function MushroomDetailsScreen() {
       <Link href={mushroomTraits[mushroom.id].source.url} style={styles.sourceLink}>Źródło cech w filtrze: {mushroomTraits[mushroom.id].source.label} ↗</Link>
       <Link href={mushroom.licenseUrl} style={styles.sourceLink}>Licencja: {mushroom.license} ↗</Link></View>
   </Page>;
+}
+
+function EdibilityCard({ mushroomId }: { mushroomId: string }) {
+  const styles = useThemedStyles(createStyles);
+  const colors = useAppTheme();
+  const edibility = mushroomEdibility[mushroomId];
+  const status = edibility?.status;
+  const unsafe = status === 'inedible' || status === 'poisonous';
+  const color = status === 'edible' ? colors.navigationActive : status === 'conditional' ? colors.gold
+    : unsafe ? colors.danger : colors.textMuted;
+  return <MotionView distance={0} style={styles.noteCard}>
+    <View style={styles.edibilityHeader}>
+      <Text accessibilityRole="header" style={styles.edibilityTitle}>Jadalność</Text>
+      <View style={[styles.edibilityBadge, { borderColor: color }]}>
+        {status === 'edible' ? <CheckIcon size={16} color={color} />
+          : unsafe ? <ExclamationIcon size={16} color={color} /> : <InfoIcon size={16} color={color} />}
+        <Text style={[styles.edibilityLabel, { color }]}>{status ? edibilityLabels[status] : 'Niezweryfikowana'}</Text>
+      </View>
+    </View>
+    {edibility?.note && <Copy>{edibility.note}</Copy>}
+    <Text style={styles.smallCopy}>{edibilityNotice}</Text>
+    {edibility && <Link href={edibility.source.url} style={styles.sourceLink}>Źródło jadalności: {edibility.source.label} ↗</Link>}
+  </MotionView>;
 }
 
 function MushroomTilePhoto({ mushroom, unlocked }: { mushroom: typeof mushroomCatalog[number]; unlocked: boolean }) {
@@ -296,6 +321,10 @@ const createStyles = (c: AppColors) => StyleSheet.create({
   statLabel: { color: c.text, fontSize: 13, lineHeight: 19, fontWeight: '700' },
   sectionTitle: { color: c.text, fontSize: 21, fontWeight: '700' },
   noteCard: { padding: 18, gap: 10, backgroundColor: c.surface, borderWidth: 1, borderColor: c.border, borderRadius: 16 },
+  edibilityHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 },
+  edibilityTitle: { color: c.text, fontSize: 15, lineHeight: 21, fontWeight: '600' },
+  edibilityBadge: { maxWidth: '100%', flexDirection: 'row', alignItems: 'center', gap: 6, borderWidth: 1, borderRadius: 20, paddingHorizontal: 10, paddingVertical: 6 },
+  edibilityLabel: { flexShrink: 1, fontSize: 12, lineHeight: 18, fontWeight: '600' },
   progressCard: { padding: 18, gap: 14, backgroundColor: c.accentSoft, borderWidth: 1, borderColor: c.accentBorder, borderRadius: 16 },
   currentBadge: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   badgeText: { flex: 1, gap: 5 },
