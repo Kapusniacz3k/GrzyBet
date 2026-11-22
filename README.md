@@ -10,6 +10,8 @@ Projekt powstał w **React Native z wykorzystaniem Expo**. Główną platformą 
 2. Otwórz pobrany plik. Jeśli Android poprosi o zgodę na instalację z tego źródła, udziel jej aplikacji, z której otwierasz APK.
 3. Zainstaluj i uruchom GrzyBet.
 
+Jeśli masz już GrzyBet, zainstaluj nowszy APK jako aktualizację, bez wcześniejszego odinstalowywania aplikacji.
+
 Na emulatorze Androida przeciągnij plik APK na okno uruchomionego emulatora, a następnie otwórz GrzyBet z listy aplikacji.
 
 Do wspólnej gry potrzebujesz połączenia z internetem i co najmniej dwóch uczestników. Każdy korzysta ze swojego telefonu lub osobnej instancji emulatora. Możesz zacząć jako gość, bez zakładania konta.
@@ -32,7 +34,8 @@ Niewysłany szkic zbioru zapisuje się na tym urządzeniu. Po utracie połączen
 ## Profil i kolekcja
 
 - **Grzybedex** zawiera **100 gatunków** z wyszukiwaniem po nazwach polskich, potocznych i łacińskich. Nieodkryte grzyby mają szare zdjęcie i kłódkę; po otwarciu kafelka od razu zobaczysz kolorowe zdjęcie i notatkę. Pierwszy zatwierdzony zbiór usuwa szarość i kłódkę.
-- Szczegóły gatunku pokazują jadalność ze źródłem i ewentualnymi warunkami spożycia, łączną liczbę zebranych sztuk, rekord jednej wyprawy, zdobytą odznakę i postęp do następnej. Oznaczenie jadalności nie potwierdza rozpoznania znalezionego okazu.
+- Szczegóły gatunku pokazują łączną liczbę zebranych sztuk, rekord jednej wyprawy, zdobytą odznakę i postęp do następnej.
+- Sekcja **Jadalność** jest dostępna na karcie każdego gatunku, także przed jego odkryciem. Pokazuje oznaczenie, ewentualne warunki spożycia i źródło informacji. Gatunki z dodatkowymi warunkami mają opis **Warunkowo jadalny**, a przy rozbieżnych danych zobaczysz **Jadalność sporna**. Oznaczenie nie potwierdza rozpoznania znalezionego okazu.
 - Przycisk **Cechy** prowadzi krok po kroku przez filtrowanie według koloru, spodu kapelusza, kształtu i miejsca występowania. To pomoc w porównaniu gatunków, która nie potwierdza jadalności grzyba.
 - **Profil** pokazuje Twój dorobek. Pod statystykami są dwa kafelki: **Aktywne wyprawy** i **Historia wypraw** — każdy otwiera osobne okno z listą.
 - Możesz grać jako gość lub zabezpieczyć konto e-mailem i hasłem, aby wrócić do swojego postępu na innym telefonie. Dostępne są także logowanie, odzyskiwanie hasła i usunięcie konta z dodatkowym potwierdzeniem.
@@ -56,9 +59,9 @@ Poniżej przygotowano **18 miejsc na zrzuty**. Zapisz pionowe obrazy PNG w folde
 | --- | --- | --- |
 | <img src="docs/screenshots/harvests.png" alt="Miejsce na zrzut dodawania zbioru" width="220"> | <img src="docs/screenshots/harvest-review.png" alt="Miejsce na zrzut oceny zgłoszeń przez gospodarza" width="220"> | <img src="docs/screenshots/results.png" alt="Miejsce na zrzut wyników i punktacji" width="220"> |
 
-| Grzybedex i wyszukiwanie | Szczegóły gatunku | Filtrowanie po cechach |
+| Grzybedex i wyszukiwanie | Karta grzyba i jadalność | Filtrowanie po cechach |
 | --- | --- | --- |
-| <img src="docs/screenshots/grzybedex.png" alt="Miejsce na zrzut Grzybedexu z wyszukiwaniem" width="220"> | <img src="docs/screenshots/mushroom-details.png" alt="Miejsce na zrzut zdjęcia, notatki i statystyk gatunku" width="220"> | <img src="docs/screenshots/trait-filter.png" alt="Miejsce na zrzut wyboru cech grzyba" width="220"> |
+| <img src="docs/screenshots/grzybedex.png" alt="Miejsce na zrzut Grzybedexu z wyszukiwaniem" width="220"> | <img src="docs/screenshots/mushroom-details.png" alt="Miejsce na zrzut zdjęcia, jadalności, notatki i statystyk gatunku" width="220"> | <img src="docs/screenshots/trait-filter.png" alt="Miejsce na zrzut wyboru cech grzyba" width="220"> |
 
 | Profil i dorobek | Aktywne wyprawy | Historia wypraw |
 | --- | --- | --- |

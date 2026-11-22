@@ -16,7 +16,7 @@ Użyj pionowych PNG z telefonu, najlepiej w tej samej rozdzielczości. Pokaż pr
 | `harvest-review.png` | Widok gospodarza: zgłoszenie oczekujące na zatwierdzenie lub odrzucenie. |
 | `results.png` | Zakończona wyprawa: wyniki uczestników i szczegóły naliczenia punktów. |
 | `grzybedex.png` | Katalog, wyszukiwarka oraz odkryte i nieodkryte grzyby z kłódkami. |
-| `mushroom-details.png` | Kolorowe zdjęcie gatunku, oznaczenie jadalności, notatka, liczba sztuk, rekord i odznaka. |
+| `mushroom-details.png` | Karta gatunku z kolorowym zdjęciem i sekcją Jadalność. Pokaż oznaczenie, warunki i źródło, np. dla opieńki miodowej; niżej są notatka, statystyki i odznaka. |
 | `trait-filter.png` | Jeden z kroków wyboru cech, np. spód kapelusza z małymi ikonami. |
 | `profile.png` | Twój dorobek i dwa kafelki do otwierania list wypraw. |
 | `active-trips.png` | Otwarte okno z listą aktywnych wypraw. |
